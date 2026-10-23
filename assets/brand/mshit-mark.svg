@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Vibe Notes</title>
-  <rect width="64" height="64" rx="15" fill="#17191C"/>
-  <path d="M12 46V18h8.2L32 33.1 43.8 18H52v28h-9V31.2L32 43 21 31.2V46z" fill="#F3F4F6"/>
-  <circle cx="51" cy="49" r="4.5" fill="#F89820"/>
-</svg>

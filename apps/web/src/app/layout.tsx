@@ -58,6 +58,7 @@ export default function RootLayout({
                   <li><a href="/#notes" className="hover:text-foreground transition-colors">Browse Notes</a></li>
                   <li><a href="/#features" className="hover:text-foreground transition-colors">Feature Highlights</a></li>
                   <li><a href="/setup" className="hover:text-primary transition-colors font-medium">Docs & Setup Guide</a></li>
+                  <li><a href="/llms" className="hover:text-primary transition-colors font-medium text-foreground">AI Copilot & Prompts</a></li>
                   <li><a href="/#demos" className="hover:text-foreground transition-colors">Interactive Demos</a></li>
                 </ul>
               </div>

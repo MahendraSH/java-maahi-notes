@@ -50,6 +50,10 @@ export function SiteHeader() {
             <HelpCircle className="w-3.5 h-3.5 text-primary" />
             <span>Docs & Setup</span>
           </Link>
+          <Link href="/llms" className="hover:text-primary transition-colors flex items-center gap-1 font-semibold text-foreground">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span>AI Copilot</span>
+          </Link>
           <a
             href="/llms.txt"
             target="_blank"
@@ -118,6 +122,17 @@ export function SiteHeader() {
               <div className="flex items-center gap-2">
                 <HelpCircle className="w-4 h-4" />
                 <span>How to Setup & Build Your Own</span>
+              </div>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/llms"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-between p-2 rounded-lg text-sm font-semibold hover:bg-primary/10 text-primary"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                <span>AI Copilot & Prompts</span>
               </div>
               <ArrowRight className="w-4 h-4" />
             </Link>

@@ -458,182 +458,109 @@ export function buildFolderTree(notes: { folder: string }[]): FolderItem[] {
 
 
 /**
- * High-quality seed notes for Java & Full-Stack engineering, Interview prep, and Markdown guides.
+ * Universal starter onboarding notes for developers downloading Vibe Notes.
  */
 export function createSampleNotes(): Note[] {
   const now = new Date().toISOString();
   return [
     {
-      id: 'java-concurrency-deep-dive',
-      title: 'Java Concurrency & Memory Model (JMM)',
-      slug: 'java-concurrency-deep-dive',
-      folder: 'Java/Internals',
-      tags: ['Java', 'Concurrency', 'JVM', 'MultiThreading', 'Interview'],
+      id: 'getting-started-and-todo',
+      title: 'Getting Started & TODO Checklist',
+      slug: 'getting-started-and-todo',
+      folder: 'General',
+      tags: ['GettingStarted', 'Onboarding', 'Todo'],
       createdAt: now,
       updatedAt: now,
       publicationStatus: 'published',
-      readingTimeMinutes: 5,
-      description: 'Key principles of the Java Memory Model, happens-before relationship, volatile semantics, and CAS atomics.',
-      content: `# Java Concurrency & Memory Model (JMM)
+      readingTimeMinutes: 3,
+      description: 'Quickstart checklist to set up your technical knowledge workspace, write your first notes, and publish to Vercel.',
+      content: `# Getting Started & TODO Checklist
 
-Understanding the **Java Memory Model (JMM)** is essential for high-performance backend systems and senior Java technical interviews.
+Welcome to **Vibe Notes** — your personal, local-first technical knowledge base.
 
-## 1. Happens-Before Guarantee
-The JMM defines when writes to a shared variable by one thread become visible to reads by another thread.
+Use this checklist to get familiar with the workspace and publish your first article:
 
-- **Program Order Rule**: Each action in a single thread happens-before every action that comes later in program order.
-- **Monitor Lock Rule**: An unlock on a monitor lock happens-before every subsequent lock on that same monitor.
-- **Volatile Variable Rule**: A write to a \`volatile\` field happens-before every subsequent read of that field.
-- **Thread Start & Join Rules**: \`Thread.start()\` happens-before any action in the started thread; any action in a thread happens-before \`Thread.join()\` returns.
+## 🚀 Onboarding Tasks
+- [ ] Explore the workspace dashboard using **⌘ I** (or click Back to Index)
+- [ ] Create your first note using **⌘ N** or the **+ New Note** button
+- [ ] Organize your thoughts into folders (e.g. \`Engineering/Backend\`, \`SystemDesign\`, \`DailyLog\`)
+- [ ] Add tags with the real-time autocomplete picker
+- [ ] Try bidirectional linking by typing \`[[Keyboard Shortcuts & Cheatsheet]]\`
+- [ ] Mark this note or your new note as **Published** to make it visible on the public site
+- [ ] Run \`yarn build:web\` or deploy to Vercel with \`vercel\` to publish your digital garden
 
-## 2. Volatile Semantics
-\`volatile\` guarantees:
-1. **Visibility**: Any thread reading a volatile variable sees the most recent write.
-2. **Instruction Reordering Prevention**: Memory barriers (LoadLoad, LoadStore, StoreStore, StoreLoad) prevent the JIT/CPU from reordering instructions across the boundary.
-
-\`\`\`java
-public class DoubleCheckedLocking {
-    // Crucial: volatile prevents partially initialized object publication
-    private static volatile DoubleCheckedLocking instance;
-
-    private DoubleCheckedLocking() {}
-
-    public static DoubleCheckedLocking getInstance() {
-        if (instance == null) {
-            synchronized (DoubleCheckedLocking.class) {
-                if (instance == null) {
-                    instance = new DoubleCheckedLocking();
-                }
-            }
-        }
-        return instance;
-    }
-}
-\`\`\`
-
-## 3. Compare-And-Swap (CAS) & Atomic Operations
-Lock-free concurrency utilizes CPU atomic primitives like \`CMPXCHG\`. Classes like \`AtomicInteger\` and \`ConcurrentHashMap\` rely on \`VarHandle\` / \`Unsafe\` for non-blocking state transitions.
-
-See related notes: [[Spring Boot Architecture & Lifecycle]] and [[Fullstack System Design Patterns]].
+## 💡 How Vibe Notes Works
+1. **Local-First & Private:** All notes are saved as plain \`.md\` files directly to \`content/notes/\` on your disk.
+2. **3-Tier Publishing:**
+   - \`local\`: Private draft, never leaves your machine.
+   - \`staged\`: Ready for your personal review.
+   - \`published\`: Publicly visible in the web reader and exported to static HTML on Vercel.
+3. **Multi-Format Export:** Need to read on other tools? Use 1-click **Copy Plain Text**, **Copy HTML**, or **Save PDF** from the top bar.
 `,
     },
     {
-      id: 'spring-boot-architecture',
-      title: 'Spring Boot Architecture & Lifecycle',
-      slug: 'spring-boot-architecture',
-      folder: 'Java/Spring',
-      tags: ['Spring Boot', 'Architecture', 'DependencyInjection', 'Java'],
-      createdAt: now,
-      updatedAt: now,
-      publicationStatus: 'published',
-      readingTimeMinutes: 4,
-      description: 'ApplicationContext initialization, Bean post-processors, and production-grade REST design.',
-      content: `# Spring Boot Architecture & Lifecycle
-
-Spring Boot streamlines production Java microservices by wrapping the **Spring ApplicationContext** with opinionated auto-configuration.
-
-## ApplicationContext Startup Sequence
-1. **Environment Preparation**: Resolves \`application.yml\`, system properties, and active profiles.
-2. **Context Creation**: Instantiates \`AnnotationConfigServletWebServerApplicationContext\`.
-3. **BeanFactoryPostProcessors**: Scans component packages, parses \`@Configuration\` and \`@Bean\` definitions.
-4. **Bean Post Processing**: Applies AOP proxies, transaction interceptors (\`@Transactional\`), and validation decorators.
-5. **Embedded Servlet WebServer**: Bootstraps Tomcat / Jetty / Netty on the configured port.
-
-## Code Example: Safe Service Boundary
-\`\`\`java
-@Service
-@Transactional(readOnly = true)
-public class NoteService {
-
-    private final NoteRepository noteRepository;
-
-    public NoteService(NoteRepository noteRepository) {
-        this.noteRepository = noteRepository;
-    }
-
-    @Transactional
-    public NoteDto createNote(CreateNoteCommand command) {
-        var entity = Note.builder()
-            .title(command.title())
-            .content(command.content())
-            .folder(command.folder())
-            .build();
-        return NoteDto.fromEntity(noteRepository.save(entity));
-    }
-}
-\`\`\`
-
-Refer back to [[Java Concurrency & Memory Model (JMM)]] for thread safety inside singleton Spring beans.
-`,
-    },
-    {
-      id: 'fullstack-system-design',
-      title: 'Fullstack System Design Patterns',
-      slug: 'fullstack-system-design',
-      folder: 'SystemDesign',
-      tags: ['SystemDesign', 'Architecture', 'Microservices', 'Caching'],
-      createdAt: now,
-      updatedAt: now,
-      publicationStatus: 'staged',
-      readingTimeMinutes: 4,
-      description: 'Distributed caching, event-driven decoupled systems, and data consistency models.',
-      content: `# Fullstack System Design Patterns
-
-Key architectural blueprints for resilient, scalable fullstack applications.
-
-## 1. Cache-Aside Pattern
-- Application checks Redis/Memcached first.
-- On cache miss, fetch from PostgreSQL/MySQL, populate cache with TTL, and return.
-- On updates, invalidate cache key rather than eager rewrite to prevent race conditions.
-
-## 2. CQRS (Command Query Responsibility Segregation)
-- Separate read queries from write mutations.
-- Enables optimized read projections (ElasticSearch or materialized views) while keeping write transactions lean and ACID-compliant.
-
-## 3. Local-First Architecture
-Applications like **Vibe Notes** prioritize:
-- **Zero latency**: Instant UI updates against local storage or embedded SQLite/Markdown files.
-- **Resilience**: Operates without network connectivity.
-- **Explicit sync**: Separates local drafting from public publishing.
-`,
-    },
-    {
-      id: 'vibe-notes-markdown-guide',
-      title: 'Vibe Notes Markdown & Cheatsheet',
-      slug: 'vibe-notes-markdown-guide',
+      id: 'keyboard-shortcuts-and-cheatsheet',
+      title: 'Keyboard Shortcuts & Cheatsheet',
+      slug: 'keyboard-shortcuts-and-cheatsheet',
       folder: 'Guides',
-      tags: ['Markdown', 'Guides', 'VibeNotes'],
+      tags: ['Cheatsheet', 'Hotkeys', 'Markdown'],
+      createdAt: now,
+      updatedAt: now,
+      publicationStatus: 'published',
+      readingTimeMinutes: 3,
+      description: 'Master keyboard-first navigation with ⌘K fuzzy search, ⌘N new note, and complete markdown formatting reference.',
+      content: `# Keyboard Shortcuts & Cheatsheet
+
+Vibe Notes is designed keyboard-first so you can capture, search, and navigate your technical knowledge at terminal speed.
+
+## ⌨️ Global Shortcuts
+- **⌘ K** / **Ctrl + K** — Open Fuzzy Search command palette (search titles, folders, #tags, or content)
+- **⌘ N** / **Ctrl + N** — Create a new note in the current folder
+- **⌘ E** / **Ctrl + E** — Toggle between Markdown Editor and Rendered Preview
+- **⌘ I** / **Ctrl + I** — Jump back to the Workspace Index Dashboard
+- **⌘ B** / **Ctrl + B** — Toggle Sidebar open/collapsed
+- **⌘ P** / **Ctrl + P** — Open Publishing Safety Boundary review hub
+- **?** / **Shift + /** — Open Documentation & Video Walkthroughs modal
+- **Esc** — Close modals or return to index
+
+## 📝 Markdown Syntax Support
+- **Bold text** with \`**bold**\` and *italic* with \`*italic*\`
+- \`inline code\` for commands, classes, and variables
+- Code blocks with syntax highlighting for any language:
+\`\`\`typescript
+const greeting = "Hello, Vibe Notes!";
+console.log(greeting);
+\`\`\`
+- Wiki-links: Link other notes using \`[[Getting Started & TODO Checklist]]\`
+- Blockquotes:
+> "Simplicity is prerequisite for reliability." — Edsger W. Dijkstra
+
+## 📤 Silent Copy & Export
+- **Copy Text:** Strips all markdown noise for external screen readers and personal speech tools.
+- **Copy HTML:** Clean semantic HTML document with styles.
+- **Print / PDF:** Clean paper-optimized print layout.
+- **Download .md:** Download raw markdown file with YAML frontmatter.
+`,
+    },
+    {
+      id: 'my-first-note',
+      title: 'My First Note',
+      slug: 'my-first-note',
+      folder: 'Drafts',
+      tags: ['Draft', 'Ideas'],
       createdAt: now,
       updatedAt: now,
       publicationStatus: 'local',
-      readingTimeMinutes: 3,
-      description: 'Interactive guide to Markdown syntax, code snippets, and cross-note linking in Vibe Notes.',
-      content: `# Vibe Notes Markdown & Cheatsheet
+      readingTimeMinutes: 1,
+      description: 'Your canvas to start writing technical notes, snippets, or system design thoughts.',
+      content: `# My First Note
 
-Welcome to **Vibe Notes**, your developer-focused knowledge workspace!
+Start typing your notes, system architecture designs, or code snippets here...
 
-## Rich Markdown Formatting
-- **Bold text** and *italicized emphasis*
-- \`inline code\` for identifiers and CLI commands
-- Blockquotes for important callouts
-
-> "Simplicity is prerequisite for reliability." — Edsger W. Dijkstra
-
-## Code Blocks with Java and TypeScript
-\`\`\`typescript
-interface VibeNote {
-  title: string;
-  tags: string[];
-  status: 'local' | 'staged' | 'published';
-}
-\`\`\`
-
-## Note-to-Note Wiki Links
-You can link notes using double brackets like:
-- [[Java Concurrency & Memory Model (JMM)]]
-- [[Spring Boot Architecture & Lifecycle]]
-
-All private notes remain local by default. Click **Publish** only when ready to push to your public web knowledge site!
+## Key Ideas
+- Add code examples for any programming language (Java, Go, Rust, Python, TypeScript)
+- Use #tags or folders to organize your knowledge
+- Link to [[Getting Started & TODO Checklist]]
 `,
     },
   ];
