@@ -1,0 +1,19 @@
+{
+  "name": "vibe-notes",
+  "private": true,
+  "packageManager": "yarn@4.18.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "yarn dev:local",
+    "dev:local": "yarn workspace local dev",
+    "dev:web": "yarn workspace web dev",
+    "build:local": "yarn workspace local build",
+    "build:web": "yarn workspace web build",
+    "build": "yarn workspace @vibe-notes/notes-core build && yarn workspace @vibe-notes/ui build && yarn build:local && yarn build:web",
+    "test": "yarn workspace @vibe-notes/notes-core test",
+    "typecheck": "yarn workspaces foreach -A run typecheck"
+  }
+}

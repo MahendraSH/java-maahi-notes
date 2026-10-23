@@ -1,0 +1,174 @@
+import test from "node:test";
+import assert from "node:assert";
+import {
+  isSafePath,
+  slugify,
+  calculateReadingTime,
+  parseFrontmatter,
+  serializeFrontmatter,
+  searchNotes,
+  buildFolderTree,
+  extractBacklinks,
+  findIncomingBacklinks,
+  type Note,
+} from "../src/index.ts";
+
+test("isSafePath prevents path traversal and unsafe filenames", () => {
+  // Safe relative paths
+  assert.strictEqual(isSafePath("notes/my-note.md"), true);
+  assert.strictEqual(isSafePath("folder/subfolder/note.md"), true);
+  assert.strictEqual(isSafePath("my-note.md"), true);
+
+  // Unsafe paths
+  assert.strictEqual(isSafePath("../secret.txt"), false);
+  assert.strictEqual(isSafePath("folder/../../secret.txt"), false);
+  assert.strictEqual(isSafePath("/etc/passwd"), false);
+  assert.strictEqual(isSafePath("\\Windows\\System32"), false);
+  assert.strictEqual(isSafePath("file\0name.md"), false);
+  assert.strictEqual(isSafePath("folder/./note.md"), false);
+  assert.strictEqual(isSafePath("file:name.md"), false);
+  assert.strictEqual(isSafePath("file*name.md"), false);
+  assert.strictEqual(isSafePath("file<name>.md"), false);
+  assert.strictEqual(isSafePath(""), false);
+});
+
+test("slugify generates clean URL-safe slugs", () => {
+  assert.strictEqual(slugify("Hello World!"), "hello-world");
+  assert.strictEqual(slugify("Java Concurrency: Threads & Locks"), "java-concurrency-threads-locks");
+  assert.strictEqual(slugify("   multiple   spaces   "), "multiple-spaces");
+  assert.strictEqual(slugify("Special #$% Characters!"), "special-characters");
+  assert.strictEqual(slugify(""), "untitled");
+});
+
+test("calculateReadingTime computes accurate estimates", () => {
+  assert.strictEqual(calculateReadingTime("short note"), 1);
+  const words250 = new Array(250).fill("word").join(" ");
+  assert.strictEqual(calculateReadingTime(words250), 2);
+});
+
+test("parseFrontmatter and serializeFrontmatter roundtrip cleanly", () => {
+  const metadata = {
+    id: "note-123",
+    title: "Java Memory Model",
+    slug: "java-memory-model",
+    folder: "Java/Core",
+    tags: ["java", "jvm", "concurrency"],
+    createdAt: "2026-03-01T10:00:00.000Z",
+    updatedAt: "2026-03-01T12:00:00.000Z",
+    publicationStatus: "published" as const,
+    description: "Deep dive into JMM",
+    readingTimeMinutes: 5,
+  };
+  const body = "# Java Memory Model\n\nContent goes here with **bold** text.";
+
+  const serialized = serializeFrontmatter(metadata, body);
+  assert.ok(serialized.startsWith("---\n"));
+  assert.ok(serialized.includes('title: "Java Memory Model"'));
+  assert.ok(serialized.includes('tags: ["java", "jvm", "concurrency"]'));
+
+  const parsed = parseFrontmatter(serialized);
+  assert.strictEqual(parsed.metadata.id, metadata.id);
+  assert.strictEqual(parsed.metadata.title, metadata.title);
+  assert.strictEqual(parsed.metadata.slug, metadata.slug);
+  assert.strictEqual(parsed.metadata.folder, metadata.folder);
+  assert.deepStrictEqual(parsed.metadata.tags, metadata.tags);
+  assert.strictEqual(parsed.metadata.publicationStatus, metadata.publicationStatus);
+  assert.strictEqual(parsed.content.trim(), body.trim());
+});
+
+test("extractBacklinks detects wiki-links to existing notes", () => {
+  const note1: Note = {
+    id: "n1",
+    title: "Spring Boot Basics",
+    slug: "spring-boot-basics",
+    folder: "Spring",
+    tags: ["spring"],
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+    publicationStatus: "local",
+    content: "See also [[Java Concurrency]] for async handling.",
+  };
+
+  const note2: Note = {
+    id: "n2",
+    title: "Java Concurrency",
+    slug: "java-concurrency",
+    folder: "Java",
+    tags: ["java"],
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+    publicationStatus: "local",
+    content: "Covers threads and locks.",
+  };
+
+  const backlinks = extractBacklinks(note1, [note1, note2]);
+  assert.strictEqual(backlinks.length, 1);
+  assert.strictEqual(backlinks[0].targetSlug, "java-concurrency");
+  assert.strictEqual(backlinks[0].sourceId, "n1");
+
+  const incomingToNote2 = findIncomingBacklinks(note2, [note1, note2]);
+  assert.strictEqual(incomingToNote2.length, 1);
+  assert.strictEqual(incomingToNote2[0].sourceTitle, "Spring Boot Basics");
+  assert.strictEqual(incomingToNote2[0].sourceSlug, "spring-boot-basics");
+});
+
+test("searchNotes scores title, tag, and content matches", () => {
+  const notes: Note[] = [
+    {
+      id: "n1",
+      title: "Kafka Architecture",
+      slug: "kafka-architecture",
+      folder: "Distributed Systems",
+      tags: ["messaging", "streaming"],
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
+      publicationStatus: "published",
+      content: "Apache Kafka uses consumer groups and partitions.",
+    },
+    {
+      id: "n2",
+      title: "Spring Security OAuth2",
+      slug: "spring-security-oauth2",
+      folder: "Spring",
+      tags: ["security", "auth"],
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-01",
+      publicationStatus: "local",
+      content: "Authentication using JWT tokens.",
+    },
+  ];
+
+  const titleResults = searchNotes(notes, "Kafka");
+  assert.strictEqual(titleResults.length, 1);
+  assert.strictEqual(titleResults[0].note.title, "Kafka Architecture");
+  assert.ok(titleResults[0].matchedIn.includes("title"));
+
+  const tagResults = searchNotes(notes, "security");
+  assert.strictEqual(tagResults.length, 1);
+  assert.strictEqual(tagResults[0].note.title, "Spring Security OAuth2");
+  assert.ok(tagResults[0].matchedIn.includes("tag"));
+
+  const contentResults = searchNotes(notes, "consumer groups");
+  assert.strictEqual(contentResults.length, 1);
+  assert.strictEqual(contentResults[0].note.title, "Kafka Architecture");
+  assert.ok(contentResults[0].matchedIn.includes("content"));
+});
+
+test("buildFolderTree creates nested structure and counts notes", () => {
+  const notes = [
+    { folder: "Java/Core" },
+    { folder: "Java/Core" },
+    { folder: "Java/Concurrency" },
+    { folder: "Spring/Boot" },
+    { folder: "General" },
+  ];
+
+  const tree = buildFolderTree(notes);
+  const javaFolder = tree.find((f) => f.path === "Java");
+  assert.ok(javaFolder, "Java root folder exists");
+  assert.strictEqual(javaFolder?.noteCount, 3);
+
+  const springFolder = tree.find((f) => f.path === "Spring");
+  assert.ok(springFolder, "Spring root folder exists");
+  assert.strictEqual(springFolder?.noteCount, 1);
+});
