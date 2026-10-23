@@ -92,3 +92,14 @@ yarn typecheck
 - **Output Directory:** `apps/web/.next`
 - **Framework:** Next.js
 - `apps/web` pre-renders all published notes into pure static HTML (SSG) with `generateStaticParams`.
+
+---
+
+## 6. Author & Repository
+
+- **Repository:** `https://github.com/MahendraSH/vibe-note`
+- **Author:** Mahendra S H (`https://mahendrash.vercel.app/`)
+- **Contact:** `https://mahendrash.vercel.app/contact`
+- **Email:** `mahendrashongunti@gmail.com`
+- **License:** MIT License
+

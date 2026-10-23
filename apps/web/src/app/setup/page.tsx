@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function SetupPage() {
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 md:py-12">
       {/* Back button */}
       <Link
         href="/"
@@ -70,9 +70,9 @@ export default function SetupPage() {
           </p>
           <div className="pl-8">
             <pre className="p-4 rounded-xl bg-card border border-border font-mono text-xs text-foreground overflow-x-auto">
-{`# Clone your fork
-git clone https://github.com/<your-username>/vibe-notes.git
-cd vibe-notes
+{`# Clone the repository
+git clone https://github.com/MahendraSH/vibe-note.git my-notes
+cd my-notes
 
 # Install monorepo dependencies
 yarn install`}
@@ -205,6 +205,70 @@ yarn workspace web start`}
               <span>View llms.txt</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
+          </div>
+        </section>
+
+        {/* Creator & Contact Section */}
+        <section className="p-6 rounded-2xl border border-primary/30 bg-primary/5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">
+                Project Maintainer
+              </div>
+              <h3 className="text-lg font-bold text-foreground">Created by Mahendra S H</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Software Engineer • Hyderabad, India • Available for contracts & full-stack roles
+              </p>
+            </div>
+            <a
+              href="https://mahendrash.vercel.app/contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm self-start sm:self-auto"
+            >
+              <span>Get in Touch</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Open to discussing microservice backend architectures (Java, Spring Boot, Go), React dashboards, full-stack contracts, or enterprise software engineering roles.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            <a
+              href="https://mahendrash.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors font-medium inline-flex items-center gap-1"
+            >
+              <span>Portfolio (mahendrash.vercel.app)</span>
+              <ExternalLink className="w-3 h-3 text-muted-foreground" />
+            </a>
+            <a
+              href="https://github.com/MahendraSH/vibe-note"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors inline-flex items-center gap-1"
+            >
+              <span>GitHub (vibe-note)</span>
+              <ExternalLink className="w-3 h-3 text-muted-foreground" />
+            </a>
+            <a
+              href="https://www.linkedin.com/in/mahendra-s-h-14a74721a/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors inline-flex items-center gap-1"
+            >
+              <span>LinkedIn</span>
+              <ExternalLink className="w-3 h-3 text-muted-foreground" />
+            </a>
+            <a
+              href="mailto:mahendrashongunti@gmail.com"
+              className="px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors"
+            >
+              mahendrashongunti@gmail.com
+            </a>
           </div>
         </section>
       </div>

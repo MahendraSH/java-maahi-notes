@@ -47,8 +47,8 @@ vibe-notes/
 Fork the repository on GitHub, then clone your fork:
 
 ```bash
-git clone https://github.com/<your-username>/vibe-notes.git
-cd vibe-notes
+git clone https://github.com/MahendraSH/vibe-note.git my-notes
+cd my-notes
 yarn install
 ```
 
@@ -110,6 +110,21 @@ Your public documentation will be live at `https://<your-project>.vercel.app/`.
 
 Working with Claude, ChatGPT, Cursor, or Antigravity?
 Refer to [LLMS.md](LLMS.md) (or [llms.txt](https://vibe-notes-demo.vercel.app/llms.txt)) for concise architecture and convention details.
+
+---
+
+## 👨‍💻 Author & Connect
+
+**Mahendra S H** — Software Engineer, Hyderabad, India.
+
+- **Website:** [mahendrash.vercel.app](https://mahendrash.vercel.app/)
+- **Contact:** [mahendrash.vercel.app/contact](https://mahendrash.vercel.app/contact)
+- **GitHub:** [@MahendraSH](https://github.com/MahendraSH)
+- **LinkedIn:** [mahendra-s-h](https://www.linkedin.com/in/mahendra-s-h-14a74721a/)
+- **Email:** [mahendrashongunti@gmail.com](mailto:mahendrashongunti@gmail.com)
+- **Upwork:** [Freelance Profile](https://www.upwork.com/freelancers/~015e4bc8c81692a6f2)
+- **Contra:** [Mahendra S H](https://contra.com/mahendra_s_h_r9rbbb9o)
+- **Medium:** [@maahi2001sh](https://medium.com/@maahi2001sh)
 
 ---
 

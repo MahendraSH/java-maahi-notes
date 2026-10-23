@@ -33,13 +33,13 @@ export default async function NotePage({ params }: NotePageProps) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-10">
       {/* Back link */}
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
+        className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className="w-3.5 h-3.5" />
         Back to all notes
       </Link>
 
@@ -126,7 +126,10 @@ function MarkdownRenderer({ content }: { content: string }) {
     if (line.startsWith("```")) {
       if (codeBlock !== null) {
         elements.push(
-          <pre key={`code-${i}`}>
+          <pre
+            key={`code-${i}`}
+            className="overflow-x-auto my-4 max-w-full rounded-xl bg-card border border-border/80 p-4 text-xs font-mono text-foreground shadow-xs"
+          >
             <code>{codeBlock.join("\n")}</code>
           </pre>
         );
@@ -201,7 +204,12 @@ function MarkdownRenderer({ content }: { content: string }) {
 
   if (codeBlock !== null) {
     elements.push(
-      <pre key="code-end"><code>{codeBlock.join("\n")}</code></pre>
+      <pre
+        key="code-end"
+        className="overflow-x-auto my-4 max-w-full rounded-xl bg-card border border-border/80 p-4 text-xs font-mono text-foreground shadow-xs"
+      >
+        <code>{codeBlock.join("\n")}</code>
+      </pre>
     );
   }
 
