@@ -81,7 +81,10 @@ export function ExportMenu({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 w-72 bg-popover border border-border rounded-xl shadow-2xl p-1.5 z-40 text-xs animate-in fade-in-50 zoom-in-95 duration-100">
+        <div
+          className="absolute right-0 top-full mt-1.5 w-72 bg-white/98 dark:bg-[#1a1d22]/98 backdrop-blur-2xl border-2 border-border/80 dark:border-[#383e46] rounded-xl shadow-2xl p-1.5 z-40 text-xs animate-in fade-in-50 zoom-in-95 duration-100"
+          style={{ backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+        >
           <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50 pb-1.5 mb-1 flex items-center justify-between">
             <span>Read, Copy & Export</span>
             {copiedType && (
