@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Menu, X, Sparkles, Video, HelpCircle, FileText, ArrowRight, ExternalLink } from "lucide-react";
+import { BookOpen, Menu, X, Sparkles, HelpCircle, ExternalLink } from "lucide-react";
+import { siteConfig } from "@/site.config";
 
 function GithubIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -20,7 +21,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-md">
       <div className="max-w-5xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group" aria-label="Vibe Notes Home">
+        <Link href="/" className="flex items-center gap-2.5 group" aria-label="Home">
           <div className="w-8 h-8 rounded-lg bg-[#17191C] border border-border/80 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
             <svg viewBox="0 0 64 64" className="w-5 h-5">
               <path d="M12 46V18h8.2L32 33.1 43.8 18H52v28h-9V31.2L32 43 21 31.2V46z" fill="#F3F4F6"/>
@@ -29,26 +30,22 @@ export function SiteHeader() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-foreground text-sm tracking-wide">Vibe Notes</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20">
-                v1.0
-              </span>
+              <span className="font-bold text-foreground text-sm tracking-wide">{siteConfig.title}</span>
             </div>
-            <p className="text-[10px] text-muted-foreground hidden sm:block">Developer Knowledge Workspace</p>
+            <p className="text-[10px] text-muted-foreground hidden sm:block">
+              {siteConfig.author.name ? `by ${siteConfig.author.name}` : "Digital Garden"}
+            </p>
           </div>
         </Link>
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-muted-foreground">
           <Link href="/#notes" className="hover:text-foreground transition-colors">
-            Browse Notes
+            Notes
           </Link>
-          <Link href="/#features" className="hover:text-foreground transition-colors">
-            Features
-          </Link>
-          <Link href="/setup" className="hover:text-primary transition-colors flex items-center gap-1 font-semibold text-foreground">
+          <Link href="/#how-to-use" className="hover:text-primary transition-colors flex items-center gap-1">
             <HelpCircle className="w-3.5 h-3.5 text-primary" />
-            <span>Docs & Setup</span>
+            <span>How to Use</span>
           </Link>
           <Link href="/llms" className="hover:text-primary transition-colors flex items-center gap-1 font-semibold text-foreground">
             <Sparkles className="w-3.5 h-3.5 text-primary" />
@@ -64,25 +61,21 @@ export function SiteHeader() {
             <span>llms.txt</span>
             <ExternalLink className="w-3 h-3 text-muted-foreground/70" />
           </a>
-          <a
-            href="https://github.com/MahendraSH/vibe-note"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
-          >
-            <GithubIcon className="w-3.5 h-3.5" />
-            <span>GitHub</span>
-          </a>
+          {siteConfig.author.githubUrl && (
+            <a
+              href={siteConfig.author.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
+            >
+              <GithubIcon className="w-3.5 h-3.5" />
+              <span>GitHub</span>
+            </a>
+          )}
         </nav>
 
         {/* Mobile Hamburger Button */}
         <div className="flex md:hidden items-center gap-2">
-          <Link
-            href="/setup"
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary border border-primary/20"
-          >
-            Setup
-          </Link>
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
@@ -104,26 +97,16 @@ export function SiteHeader() {
               className="flex items-center justify-between p-2 rounded-lg text-sm font-medium hover:bg-muted text-foreground"
             >
               <span>Browse Notes</span>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
             </Link>
             <Link
-              href="/#features"
+              href="/#how-to-use"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center justify-between p-2 rounded-lg text-sm font-medium hover:bg-muted text-foreground"
             >
-              <span>Why Vibe Notes</span>
-              <ArrowRight className="w-4 h-4 text-muted-foreground" />
-            </Link>
-            <Link
-              href="/setup"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-between p-2 rounded-lg text-sm font-semibold hover:bg-primary/10 text-primary"
-            >
               <div className="flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" />
-                <span>How to Setup & Build Your Own</span>
+                <HelpCircle className="w-4 h-4 text-primary" />
+                <span>How to Use</span>
               </div>
-              <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href="/llms"
@@ -134,7 +117,6 @@ export function SiteHeader() {
                 <Sparkles className="w-4 h-4" />
                 <span>AI Copilot & Prompts</span>
               </div>
-              <ArrowRight className="w-4 h-4" />
             </Link>
             <a
               href="/llms.txt"
@@ -147,17 +129,19 @@ export function SiteHeader() {
             </a>
           </div>
 
-          <div className="pt-2 border-t border-border/60">
-            <a
-              href="https://github.com/MahendraSH/vibe-note"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-sm font-semibold text-foreground shadow-xs"
-            >
-              <GithubIcon className="w-4 h-4" />
-              <span>Fork on GitHub</span>
-            </a>
-          </div>
+          {siteConfig.author.githubUrl && (
+            <div className="pt-2 border-t border-border/60">
+              <a
+                href={siteConfig.author.githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-sm font-semibold text-foreground shadow-xs"
+              >
+                <GithubIcon className="w-4 h-4" />
+                <span>View on GitHub</span>
+              </a>
+            </div>
+          )}
         </div>
       )}
     </header>

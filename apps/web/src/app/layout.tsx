@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { siteConfig } from "@/site.config";
+import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
-  title: "Vibe Notes — Knowledge Base",
-  description:
-    "A curated collection of developer knowledge notes on Java, Spring Boot, system design, and fullstack engineering.",
+  title: siteConfig.title,
+  description: siteConfig.description,
   icons: {
     icon: "/icon.svg",
   },
 };
-
-import { SiteHeader } from "@/components/site-header";
 
 export default function RootLayout({
   children,
@@ -37,99 +36,90 @@ export default function RootLayout({
                       <circle cx="51" cy="49" r="4.5" fill="#F89820"/>
                     </svg>
                   </div>
-                  <span className="font-bold text-sm text-foreground">Vibe Notes</span>
+                  <span className="font-bold text-sm text-foreground">{siteConfig.title}</span>
                 </div>
                 <p className="text-muted-foreground leading-relaxed">
-                  Open-source, local-first technical knowledge base & digital garden. Build your own notes system for any language or architecture.
+                  {siteConfig.description}
                 </p>
                 <div className="flex items-center gap-2 pt-1">
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/60">
-                    MIT Licensed
+                    Static & Fast
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                    v1.0
+                    SSG
                   </span>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Workspace</h4>
+                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Navigation</h4>
                 <ul className="space-y-2 text-muted-foreground">
                   <li><a href="/#notes" className="hover:text-foreground transition-colors">Browse Notes</a></li>
-                  <li><a href="/#features" className="hover:text-foreground transition-colors">Feature Highlights</a></li>
-                  <li><a href="/setup" className="hover:text-primary transition-colors font-medium">Docs & Setup Guide</a></li>
+                  <li><a href="/#how-to-use" className="hover:text-foreground transition-colors">How to Use</a></li>
                   <li><a href="/llms" className="hover:text-primary transition-colors font-medium text-foreground">AI Copilot & Prompts</a></li>
-                  <li><a href="/#demos" className="hover:text-foreground transition-colors">Interactive Demos</a></li>
+                  <li><a href="/llms.txt" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors font-mono">/llms.txt</a></li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Formats & Export</h4>
+                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Reader Features</h4>
                 <ul className="space-y-2 text-muted-foreground">
                   <li><span className="text-foreground/80">Plain Text (Screen Readers)</span></li>
                   <li><span className="text-foreground/80">Semantic HTML Export</span></li>
                   <li><span className="text-foreground/80">Print / PDF Layout</span></li>
                   <li><span className="text-foreground/80">Raw Markdown (.md)</span></li>
-                  <li><a href="/llms.txt" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors font-mono">/llms.txt (AI Prompts)</a></li>
+                  <li><span className="text-foreground/80">Instant Fuzzy Search</span></li>
                 </ul>
               </div>
 
               <div>
-                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Creator & Connect</h4>
+                <h4 className="font-semibold text-foreground uppercase tracking-wider text-[11px] mb-3">Author & Connect</h4>
                 <ul className="space-y-2 text-muted-foreground">
-                  <li>
-                    <a href="https://mahendrash.vercel.app/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors font-medium text-foreground flex items-center gap-1">
-                      <span>Mahendra S H</span>
-                      <span className="text-[10px] text-primary">↗</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://mahendrash.vercel.app/contact" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      Contact / Inquiries
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://github.com/MahendraSH/vibe-note" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      GitHub (vibe-note)
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://www.linkedin.com/in/mahendra-s-h-14a74721a/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      LinkedIn
-                    </a>
-                  </li>
-                  <li>
-                    <a href="mailto:mahendrashongunti@gmail.com" className="hover:text-foreground transition-colors">
-                      Email Mahendra
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://www.upwork.com/freelancers/~015e4bc8c81692a6f2" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      Upwork
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://contra.com/mahendra_s_h_r9rbbb9o" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      Contra
-                    </a>
-                  </li>
-                  <li>
-                    <a href="https://medium.com/@maahi2001sh" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                      Medium
-                    </a>
-                  </li>
+                  {siteConfig.author.portfolioUrl && (
+                    <li>
+                      <a href={siteConfig.author.portfolioUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors font-medium text-foreground flex items-center gap-1">
+                        <span>{siteConfig.author.name}</span>
+                        <span className="text-[10px] text-primary">↗</span>
+                      </a>
+                    </li>
+                  )}
+                  {siteConfig.author.contactUrl && (
+                    <li>
+                      <a href={siteConfig.author.contactUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+                        Contact / Inquiries
+                      </a>
+                    </li>
+                  )}
+                  {siteConfig.author.githubUrl && (
+                    <li>
+                      <a href={siteConfig.author.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+                        GitHub
+                      </a>
+                    </li>
+                  )}
+                  {siteConfig.author.linkedinUrl && (
+                    <li>
+                      <a href={siteConfig.author.linkedinUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+                        LinkedIn
+                      </a>
+                    </li>
+                  )}
                 </ul>
               </div>
             </div>
 
             <div className="pt-6 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
               <p>
-                © {new Date().getFullYear()} <a href="https://mahendrash.vercel.app/" target="_blank" rel="noopener noreferrer" className="text-foreground hover:text-primary font-medium">Mahendra S H</a>. Open Source under the <a href="https://github.com/MahendraSH/vibe-note/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">MIT License</a>.
+                © {new Date().getFullYear()} {siteConfig.author.name || "Engineering Notes"}.
               </p>
               <div className="flex items-center gap-4">
-                <a href="/setup" className="hover:text-foreground transition-colors">Documentation</a>
-                <a href="https://github.com/MahendraSH/vibe-note" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Source Code</a>
-                <a href="https://mahendrash.vercel.app/contact" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Get in Touch</a>
+                <a href="/#how-to-use" className="hover:text-foreground transition-colors">Reader Guide</a>
+                {siteConfig.author.githubUrl && (
+                  <a href={siteConfig.author.githubUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Source Code</a>
+                )}
+                {siteConfig.author.contactUrl && (
+                  <a href={siteConfig.author.contactUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Get in Touch</a>
+                )}
               </div>
             </div>
           </div>
