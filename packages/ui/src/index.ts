@@ -9,3 +9,5 @@ export { Separator } from "./components/ui/separator";
 export { Dialog, DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "./components/ui/dialog";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 export { ScrollArea } from "./components/ui/scroll-area";
+export { ReadAloudPlayer, parseMarkdownToSentences, type AudioSentence } from "./components/read-aloud";
+export { ExportMenu } from "./components/export-menu";

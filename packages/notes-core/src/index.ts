@@ -638,3 +638,122 @@ All private notes remain local by default. Click **Publish** only when ready to 
     },
   ];
 }
+
+/* ------------------------------------------------------------------ */
+/*  Export & Screen Reader Formatting Utilities                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Strips markdown syntax, frontmatter, and code blocks for clean plain-text
+ * reading or pasting into external TTS/screen-reader tools.
+ */
+export function markdownToPlainText(markdown: string): string {
+  return markdown
+    .replace(/^---[\s\S]*?---\n*/, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\[(.*?)\]\]/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Formats markdown specifically for Speech Synthesis / TTS tools,
+ * inserting polite cues for code snippets instead of raw code syntax.
+ */
+export function markdownToTtsScript(markdown: string): string {
+  return markdown
+    .replace(/^---[\s\S]*?---\n*/, "")
+    .replace(/```([a-zA-Z0-9_-]*)\n[\s\S]*?```/g, "\n[Code snippet in $1. Pausing to review.]\n")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\[(.*?)\]\]/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Converts note markdown into clean semantic HTML with standalone CSS
+ * for easy copying to clipboard or exporting as formatted HTML.
+ */
+export function markdownToHtml(markdown: string, title: string): string {
+  const cleanBody = markdown.replace(/^---[\s\S]*?---\n*/, "");
+  const lines = cleanBody.split("\n");
+  const htmlParts: string[] = [];
+  let inCode = false;
+  let codeLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (inCode) {
+        htmlParts.push(`<pre style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:8px;overflow-x:auto;"><code>${codeLines.join("\n")}</code></pre>`);
+        inCode = false;
+        codeLines = [];
+      } else {
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeLines.push(line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+      continue;
+    }
+
+    if (line.startsWith("### ")) {
+      htmlParts.push(`<h3>${escapeAndFormat(line.slice(4))}</h3>`);
+    } else if (line.startsWith("## ")) {
+      htmlParts.push(`<h2>${escapeAndFormat(line.slice(3))}</h2>`);
+    } else if (line.startsWith("# ")) {
+      htmlParts.push(`<h1>${escapeAndFormat(line.slice(2))}</h1>`);
+    } else if (line.startsWith("> ")) {
+      htmlParts.push(`<blockquote style="border-left:3px solid #f97316;padding-left:12px;color:#888;">${escapeAndFormat(line.slice(2))}</blockquote>`);
+    } else if (line.trim()) {
+      htmlParts.push(`<p>${escapeAndFormat(line)}</p>`);
+    }
+  }
+
+  if (inCode) {
+    htmlParts.push(`<pre><code>${codeLines.join("\n")}</code></pre>`);
+  }
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #222; }
+h1, h2, h3 { color: #111; }
+code { background: #f4f4f4; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+pre code { background: none; padding: 0; }
+</style>
+</head>
+<body>
+<h1>${title}</h1>
+${htmlParts.join("\n")}
+</body>
+</html>`;
+}
+
+function escapeAndFormat(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[\[(.*?)\]\]/g, "<u>$1</u>");
+}

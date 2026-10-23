@@ -6,13 +6,14 @@ import {
   Sun, Moon, Save, Clock, Tag, BookOpen, Menu, X, Trash2, Eye, Edit3, Copy,
   Globe, ShieldCheck, AlertCircle, CheckCircle2, ArrowRight, CornerDownRight,
   ExternalLink, LayoutDashboard, Sparkles, Filter, ArrowUpDown, History,
-  Layers, Pin, Calendar, Check, Keyboard, HelpCircle
+  Layers, Pin, Calendar, Check, Keyboard, HelpCircle, Play, Video, Headphones
 } from "lucide-react";
 import {
   type Note, type NoteMetadata, type FolderItem, type PublicationStatus, type Backlink,
   createSampleNotes, slugify, calculateReadingTime, buildFolderTree, searchNotes,
-  findIncomingBacklinks, type SearchOptions
+  findIncomingBacklinks, type SearchOptions, markdownToPlainText
 } from "@vibe-notes/notes-core";
+import { ReadAloudPlayer, ExportMenu } from "@vibe-notes/ui";
 
 /* ------------------------------------------------------------------ */
 /*  Notes Store                                                       */
@@ -385,6 +386,16 @@ export default function LocalEditorPage() {
             <LayoutDashboard className="w-4 h-4 text-primary" />
             <span>Workspace Index</span>
           </button>
+
+          {/* Documentation & Video Guides Link */}
+          <button
+            onClick={() => setShortcutsModalOpen(true)}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
+          >
+            <BookOpen className="w-4 h-4 text-primary" />
+            <span className="flex-1 text-left">Docs & Video Guides</span>
+            <span className="text-[10px] bg-primary/10 text-primary font-semibold px-1.5 py-0.2 rounded font-mono">HD</span>
+          </button>
         </div>
 
         {/* Sidebar Navigation */}
@@ -589,13 +600,15 @@ export default function LocalEditorPage() {
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Shortcuts Quick Button in Header */}
+          {/* Docs & Video Guides Quick Button in Header */}
           <button
             onClick={() => setShortcutsModalOpen(true)}
-            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title="Keyboard shortcuts (?)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border hover:bg-muted text-xs text-foreground font-medium transition-colors cursor-pointer shadow-xs"
+            title="Docs, Video Demos & Keyboard Cheatsheet (?)"
           >
-            <Keyboard className="w-4 h-4" />
+            <Video className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Docs & Videos</span>
+            <kbd className="text-[10px] font-mono bg-muted px-1 rounded text-muted-foreground">?</kbd>
           </button>
 
           {/* Publishing Hub Button */}
@@ -687,9 +700,9 @@ export default function LocalEditorPage() {
         />
       )}
 
-      {/* ─── KEYBOARD SHORTCUTS CHEATSHEET MODAL ─── */}
+      {/* ─── DOCUMENTATION & VIDEO GUIDES MODAL ─── */}
       {shortcutsModalOpen && (
-        <KeyboardShortcutsModal onClose={() => setShortcutsModalOpen(false)} />
+        <DocsAndHelpModal onClose={() => setShortcutsModalOpen(false)} />
       )}
     </div>
   );
@@ -1492,6 +1505,19 @@ function NoteEditor({
   onNavigateNote: (id: string) => void;
   onBackToIndex: () => void;
 }) {
+  const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+
+  const handleCopyPlainText = async () => {
+    try {
+      await navigator.clipboard.writeText(markdownToPlainText(note.content));
+      setCopiedText(true);
+      setTimeout(() => setCopiedText(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
   const cycleStatus = () => {
     const order: PublicationStatus[] = ["local", "staged", "published"];
     const currentIdx = order.indexOf(note.publicationStatus);
@@ -1575,6 +1601,29 @@ function NoteEditor({
             {note.readingTimeMinutes}m read
           </span>
 
+          {/* 1-Click Copy Plain Text (Fast, zero sound, for external tools) */}
+          <button
+            type="button"
+            onClick={handleCopyPlainText}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/60 hover:bg-card text-xs font-medium text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Copy clean plain text (markdown stripped) to read in external screen reader or text tools"
+          >
+            {copiedText ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-success" />
+                <span className="text-success font-semibold">Copied!</span>
+              </>
+            ) : (
+              <>
+                <FileText className="w-3.5 h-3.5 text-primary" />
+                <span>Copy Text</span>
+              </>
+            )}
+          </button>
+
+          {/* Export & Copy Menu */}
+          <ExportMenu note={note} onTriggerReadAloud={() => setIsReadingAloud(true)} />
+
           <button
             onClick={onDelete}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
@@ -1631,6 +1680,15 @@ function NoteEditor({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Floating Read Aloud Player */}
+      {isReadingAloud && (
+        <ReadAloudPlayer
+          content={note.content}
+          noteTitle={note.title}
+          onClose={() => setIsReadingAloud(false)}
+        />
       )}
     </div>
   );
@@ -2232,92 +2290,428 @@ function PublishingSafetyModal({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Keyboard Shortcuts Cheatsheet Modal                                */
+/*  Interactive Documentation & Video Guides Modal                     */
 /* ------------------------------------------------------------------ */
 
-function KeyboardShortcutsModal({ onClose }: { onClose: () => void }) {
+function DocsAndHelpModal({ onClose }: { onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<"videos" | "shortcuts" | "syntax" | "publishing">("videos");
+  const [selectedVideoIdx, setSelectedVideoIdx] = useState<number>(0);
+
+  const videoDemos = [
+    {
+      id: "tag-folder",
+      title: "Tag Autocomplete & Folder Hierarchy",
+      badge: "Tags & Folders",
+      src: "/videos/tag-folder-demo.webp",
+      desc: "Instant autocomplete search for workspace tags, on-the-fly tag & folder creation, and inline #hashtag extraction.",
+      steps: [
+        {
+          title: "Search Existing Workspace Tags",
+          detail: "Type in any tag picker or Quick Capture bar. Existing tags with note counts appear in real time.",
+        },
+        {
+          title: "Create New Tags On The Fly",
+          detail: "Type any new tag name and press Enter on \"Create #tag\". It is automatically added as an interactive badge.",
+        },
+        {
+          title: "Search & Create Folders with Combobox",
+          detail: "Click the folder picker to view all existing hierarchy paths or type a new nested folder like \"Engineering/Distributed\".",
+        },
+        {
+          title: "Inline Hashtags in Quick Capture",
+          detail: "Type \"Kafka Streams #streaming #kafka\" in the note title. Hashtags are extracted automatically into tags upon creation!",
+        },
+        {
+          title: "Keyboard Ergonomics",
+          detail: "Use ↑ / ↓ arrow keys to navigate suggestions, Enter / Tab / Comma to select, and Backspace on empty input to delete tags.",
+        },
+      ],
+    },
+    {
+      id: "keyboard-nav",
+      title: "Keyboard-First Speed Navigation",
+      badge: "Hotkeys & Search",
+      src: "/videos/keyboard-nav-demo.webp",
+      desc: "Fly through your entire knowledge workspace using fast hotkeys and the global fuzzy command palette.",
+      steps: [
+        {
+          title: "⌘K / Ctrl+K — Advanced Fuzzy Search",
+          detail: "Open the fuzzy search palette from anywhere. Type queries or use syntax like #tag, folder:xyz, or status:pub.",
+        },
+        {
+          title: "Arrow Keys & Enter Navigation",
+          detail: "Use Down/Up arrows to highlight search results and press Enter to instantly jump into the note.",
+        },
+        {
+          title: "⌘E / Ctrl+E — Toggle Edit vs Preview",
+          detail: "Switch instantaneously between raw Markdown editor and rendered preview mode.",
+        },
+        {
+          title: "⌘I / Ctrl+I — Return to Workspace Index",
+          detail: "Return directly to the master workspace index dashboard from any note view.",
+        },
+        {
+          title: "⌘B / Ctrl+B — Toggle Sidebar",
+          detail: "Collapse the left sidebar to enter distraction-free full-width writing mode.",
+        },
+      ],
+    },
+    {
+      id: "workspace-overview",
+      title: "Workspace Dashboard & Quick Capture",
+      badge: "Dashboard & Capture",
+      src: "/videos/workspace-overview-demo.webp",
+      desc: "Live workspace metrics, publication filtering tabs, and lightning-fast thought capture.",
+      steps: [
+        {
+          title: "Live Workspace Analytics",
+          detail: "Track total notes, published documentation count, staged review items, and estimated reading time.",
+        },
+        {
+          title: "Publication Status Filters",
+          detail: "Switch between All, Published, Staged for Review, and Local Only with 1-click filter tabs.",
+        },
+        {
+          title: "Quick Capture Bar",
+          detail: "Capture thoughts, architecture snippets, or meeting notes in 2 seconds with custom folder and tags.",
+        },
+        {
+          title: "Wiki-Links & Backlinks Explorer",
+          detail: "Link notes together using [[Note Title]]. View incoming backlinks automatically at the bottom of notes.",
+        },
+      ],
+    },
+  ];
+
   const shortcutGroups = [
     {
-      category: "Navigation & Workspace",
+      category: "Navigation & Command Palette",
       shortcuts: [
-        { key: "⌘ K", alt: "Ctrl + K", desc: "Open Advanced Search" },
+        { key: "⌘ K", alt: "Ctrl + K", desc: "Open Advanced Fuzzy Search" },
         { key: "⌘ I", alt: "Ctrl + I", desc: "Return to Workspace Index Dashboard" },
         { key: "⌘ B", alt: "Ctrl + B", desc: "Toggle Sidebar open / collapsed" },
-        { key: "?", alt: "Shift + /", desc: "Open this keyboard shortcuts guide" },
+        { key: "?", alt: "Shift + /", desc: "Open this Docs & Video Guides modal" },
         { key: "ESC", alt: "Escape", desc: "Close modals / Exit to Index" },
       ],
     },
     {
       category: "Note Actions & Editing",
       shortcuts: [
-        { key: "⌘ N", alt: "Ctrl + N / Alt + N", desc: "Create a new note" },
+        { key: "⌘ N", alt: "Ctrl + N", desc: "Create a new note in current folder" },
         { key: "⌘ E", alt: "Ctrl + E", desc: "Toggle Markdown Edit mode vs Preview" },
         { key: "⌘ S", alt: "Ctrl + S", desc: "Save note to disk (auto-saved)" },
+        { key: "Backspace", alt: "Delete", desc: "Remove last tag badge when input is empty" },
       ],
     },
     {
-      category: "Search & List Navigation",
+      category: "Combobox & Autocomplete",
       shortcuts: [
-        { key: "↓ / ↑", alt: "Down / Up Arrow", desc: "Navigate through search results" },
-        { key: "Enter", alt: "Return", desc: "Open highlighted note" },
-        { key: "#tag", alt: "tag:name", desc: "Filter search query by tag" },
-        { key: "status:pub", alt: "status:published", desc: "Filter search query by status" },
+        { key: "↓ / ↑", alt: "Down / Up", desc: "Navigate suggestions or create button" },
+        { key: "Enter", alt: "Return", desc: "Confirm selection or create tag/folder" },
+        { key: "Tab / ,", alt: "Tab or Comma", desc: "Accept tag suggestion" },
       ],
     },
     {
-      category: "Publishing & Safety",
+      category: "Publishing Safety Boundary",
       shortcuts: [
-        { key: "⌘ P", alt: "Ctrl + P", desc: "Open Publishing Safety Boundary modal" },
+        { key: "⌘ P", alt: "Ctrl + P", desc: "Open Publishing Safety Boundary review hub" },
       ],
     },
   ];
 
+  const currentVideo = videoDemos[selectedVideoIdx];
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="w-full max-w-xl bg-popover border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="w-full max-w-4xl bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in-50 zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Keyboard className="w-5 h-5 text-primary" />
-            <h2 className="text-base font-semibold">Keyboard Navigation Shortcuts</h2>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/60">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Documentation & Video Guides</h2>
+              <p className="text-xs text-muted-foreground">Interactive walkthroughs, keyboard shortcuts, and power-user tips.</p>
+            </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-muted text-muted-foreground cursor-pointer">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            aria-label="Close documentation modal"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {shortcutGroups.map((group) => (
-            <div key={group.category}>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-                {group.category}
-              </h3>
-              <div className="space-y-1.5">
-                {group.shortcuts.map((s) => (
-                  <div
-                    key={s.desc}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/50 text-xs"
-                  >
-                    <span className="text-foreground">{s.desc}</span>
-                    <kbd className="px-2 py-1 rounded bg-muted border border-border text-[11px] font-mono font-semibold text-primary">
-                      {s.key}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-1 px-6 pt-3 border-b border-border bg-background">
+          <button
+            onClick={() => setActiveTab("videos")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
+              activeTab === "videos"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>Video Walkthroughs ({videoDemos.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("shortcuts")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
+              activeTab === "shortcuts"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Keyboard className="w-3.5 h-3.5" />
+            <span>Keyboard Hotkeys</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("syntax")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
+              activeTab === "syntax"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Search & Wiki-Links</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("publishing")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
+              activeTab === "publishing"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Publishing Boundary</span>
+          </button>
         </div>
 
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* TAB 1: VIDEO WALKTHROUGHS */}
+          {activeTab === "videos" && (
+            <div className="space-y-6">
+              {/* Video Selector Pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                {videoDemos.map((demo, idx) => (
+                  <button
+                    key={demo.id}
+                    onClick={() => setSelectedVideoIdx(idx)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      selectedVideoIdx === idx
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Play className="w-3 h-3" />
+                    <span>{demo.title}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Video Showcase Card */}
+              <div className="rounded-xl border border-border bg-card/50 overflow-hidden shadow-lg">
+                {/* Browser Mockup Chrome Header */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b border-border text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-destructive/70" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-warning/70" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-success/70" />
+                    </div>
+                    <span className="font-mono text-[11px] text-muted-foreground ml-2">
+                      vibe-notes://walkthrough/{currentVideo.id}
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-semibold tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    {currentVideo.badge}
+                  </span>
+                </div>
+
+                {/* Looping Demo Player */}
+                <div className="p-3 bg-black/40 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={currentVideo.src}
+                    alt={currentVideo.title}
+                    className="w-full rounded-lg border border-border/80 object-contain max-h-[360px] bg-card/60 shadow-md"
+                  />
+                </div>
+
+                {/* Video Info & Step-by-Step Guide */}
+                <div className="p-5 border-t border-border space-y-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">{currentVideo.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{currentVideo.desc}</p>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Step-by-Step Feature Guide
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {currentVideo.steps.map((st, i) => (
+                        <div key={i} className="p-3 rounded-lg border border-border/50 bg-background text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                            <span className="w-4 h-4 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-mono">
+                              {i + 1}
+                            </span>
+                            <span>{st.title}</span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed pl-5">{st.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: KEYBOARD SHORTCUTS */}
+          {activeTab === "shortcuts" && (
+            <div className="space-y-6">
+              {shortcutGroups.map((group) => (
+                <div key={group.category}>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                    {group.category}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {group.shortcuts.map((s) => (
+                      <div
+                        key={s.desc}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-card/60 border border-border/50 text-xs"
+                      >
+                        <span className="text-foreground">{s.desc}</span>
+                        <div className="flex items-center gap-1.5">
+                          <kbd className="px-2 py-0.5 rounded bg-muted border border-border text-[11px] font-mono font-semibold text-primary">
+                            {s.key}
+                          </kbd>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* TAB 3: SEARCH SYNTAX & WIKI-LINKS */}
+          {activeTab === "syntax" && (
+            <div className="space-y-6 text-xs leading-relaxed">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Advanced Search Operators
+                </h3>
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg bg-card border border-border/60 flex items-start gap-3">
+                    <kbd className="px-2 py-1 bg-muted rounded font-mono text-primary font-semibold">#tag</kbd>
+                    <div>
+                      <p className="font-semibold text-foreground">Filter by Tag</p>
+                      <p className="text-muted-foreground">Type <code className="bg-muted px-1 rounded">#redis</code> or <code className="bg-muted px-1 rounded">#architecture</code> in the search bar or title input to filter or tag notes.</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-card border border-border/60 flex items-start gap-3">
+                    <kbd className="px-2 py-1 bg-muted rounded font-mono text-primary font-semibold">folder:name</kbd>
+                    <div>
+                      <p className="font-semibold text-foreground">Filter by Folder Hierarchy</p>
+                      <p className="text-muted-foreground">Type <code className="bg-muted px-1 rounded">folder:Java</code> to find all notes inside the Java directory and subdirectories.</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-card border border-border/60 flex items-start gap-3">
+                    <kbd className="px-2 py-1 bg-muted rounded font-mono text-primary font-semibold">status:pub</kbd>
+                    <div>
+                      <p className="font-semibold text-foreground">Filter by Publication Boundary</p>
+                      <p className="text-muted-foreground">Filter notes by lifecycle status using <code className="bg-muted px-1 rounded">status:published</code>, <code className="bg-muted px-1 rounded">status:staged</code>, or <code className="bg-muted px-1 rounded">status:local</code>.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Bidirectional Wiki-Links & Backlinks
+                </h3>
+                <div className="p-4 rounded-xl bg-card border border-border/60 space-y-2">
+                  <p className="text-foreground">
+                    Connect your notes like a personal wiki using double brackets:
+                  </p>
+                  <pre className="p-2.5 rounded-lg bg-muted/60 font-mono text-[11px] text-primary">
+                    {`Review the architecture decisions in [[Java Concurrency & Memory Model (JMM)]] 
+before implementing [[Spring Boot Architecture & Lifecycle]].`}
+                  </pre>
+                  <p className="text-muted-foreground">
+                    Vibe Notes automatically indexes incoming references and displays an interactive <strong>Incoming Backlinks</strong> card at the bottom of the note in Preview mode.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: PUBLISHING SAFETY BOUNDARY */}
+          {activeTab === "publishing" && (
+            <div className="space-y-6 text-xs leading-relaxed">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  The 3-Tier Publishing Boundary
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  Vibe Notes keeps your private notes completely secure on your machine while allowing you to cleanly publish selected technical guides to the public web reader on port 3001.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-xl border border-muted bg-card space-y-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground" />
+                      <span>1. Local Only</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Private by default. Saved strictly to your local filesystem in <code className="bg-muted px-1 rounded">content/notes/</code> and git-ignored.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-warning/40 bg-warning/5 space-y-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-warning">
+                      <span className="w-2.5 h-2.5 rounded-full bg-warning" />
+                      <span>2. Staged for Review</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Staged for pre-publication audit. Accessible via the <kbd className="px-1 bg-muted rounded font-mono">⌘P</kbd> hub to verify formatting before going live.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-success/40 bg-success/5 space-y-2">
+                    <div className="flex items-center gap-1.5 font-semibold text-success">
+                      <span className="w-2.5 h-2.5 rounded-full bg-success" />
+                      <span>3. Published</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Live public technical documentation visible to readers on <code className="bg-muted px-1 rounded">http://localhost:3001</code>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
         <div className="px-6 py-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Press <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono">ESC</kbd> to dismiss</span>
+          <span>Press <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono">ESC</kbd> or <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono">?</kbd> anytime to open this guide</span>
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+            className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-sm"
           >
-            Got it
+            Close Guide
           </button>
         </div>
       </div>

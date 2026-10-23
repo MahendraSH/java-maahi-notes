@@ -4,6 +4,7 @@ import { FileText, Clock, FolderOpen, Tag, ArrowLeft, BookOpen } from "lucide-re
 import Link from "next/link";
 import type { Metadata } from "next";
 import React from "react";
+import { ArticleReaderToolbar } from "@/components/article-reader-toolbar";
 
 interface NotePageProps {
   params: Promise<{ slug: string }>;
@@ -76,6 +77,11 @@ export default async function NotePage({ params }: NotePageProps) {
               #{tag}
             </span>
           ))}
+        </div>
+
+        {/* Read Aloud & Multi-Format Export Toolbar */}
+        <div className="mt-5 pt-4 border-t border-border/50">
+          <ArticleReaderToolbar note={note} />
         </div>
       </header>
 
