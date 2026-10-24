@@ -209,3 +209,71 @@ export async function deleteNoteFromDisk(id: string): Promise<boolean> {
 
   return false;
 }
+
+/**
+ * Resolves the published notes directory tracked in Git (content/published).
+ */
+export function getPublishedDirectory(): string {
+  const notesDir = getStorageDirectory();
+  const parent = path.dirname(notesDir);
+  return path.join(parent, "published");
+}
+
+/**
+ * Copies all notes with publicationStatus === "published" to content/published/
+ * and writes a manifest.json.
+ */
+export async function exportPublishedNotesToDisk(): Promise<{
+  count: number;
+  exportedFiles: string[];
+  publishedDir: string;
+}> {
+  const allNotes = await loadAllNotes();
+  const publishedNotes = allNotes.filter((n) => n.publicationStatus === "published");
+  const pubDir = getPublishedDirectory();
+
+  if (!fs.existsSync(/*turbopackIgnore: true*/ pubDir)) {
+    fs.mkdirSync(/*turbopackIgnore: true*/ pubDir, { recursive: true });
+  }
+
+  const exportedFiles: string[] = [];
+
+  for (const note of publishedNotes) {
+    const filename = `${note.id}.md`;
+    if (!isSafePath(filename)) continue;
+    const destPath = path.join(/*turbopackIgnore: true*/ pubDir, filename);
+    const content = serializeFrontmatter(note, note.content);
+    fs.writeFileSync(/*turbopackIgnore: true*/ destPath, content, "utf8");
+    exportedFiles.push(filename);
+  }
+
+  // Write manifest.json
+  const manifest = {
+    version: "1.0.0",
+    generatedAt: new Date().toISOString(),
+    count: publishedNotes.length,
+    notes: publishedNotes.map((n) => ({
+      id: n.id,
+      title: n.title,
+      slug: n.slug,
+      folder: n.folder,
+      tags: n.tags,
+      publicationStatus: n.publicationStatus,
+      description: n.description,
+      readingTimeMinutes: n.readingTimeMinutes,
+      updatedAt: n.updatedAt,
+    })),
+  };
+  fs.writeFileSync(
+    /*turbopackIgnore: true*/ path.join(/*turbopackIgnore: true*/ pubDir, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    "utf8"
+  );
+
+  return {
+    count: publishedNotes.length,
+    exportedFiles,
+    publishedDir: pubDir,
+  };
+}
+

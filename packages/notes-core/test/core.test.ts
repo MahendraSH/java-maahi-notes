@@ -10,6 +10,9 @@ import {
   buildFolderTree,
   extractBacklinks,
   findIncomingBacklinks,
+  extractTableOfContents,
+  isMarkdownTableStart,
+  isMarkdownTableSeparator,
   type Note,
 } from "../src/index.ts";
 
@@ -172,3 +175,44 @@ test("buildFolderTree creates nested structure and counts notes", () => {
   assert.ok(springFolder, "Spring root folder exists");
   assert.strictEqual(springFolder?.noteCount, 1);
 });
+
+test("buildFolderTree incorporates includeDefaults properly", () => {
+  const notes = [{ folder: "Backend Mastery" }];
+  const defaults = ["Backend Mastery", "Frontend Mastery", "Architecture"] as const;
+
+  const tree = buildFolderTree(notes, defaults);
+  assert.strictEqual(tree.length, 3);
+  const backend = tree.find((f) => f.path === "Backend Mastery");
+  assert.strictEqual(backend?.noteCount, 1);
+  const frontend = tree.find((f) => f.path === "Frontend Mastery");
+  assert.strictEqual(frontend?.noteCount, 0);
+  const arch = tree.find((f) => f.path === "Architecture");
+  assert.strictEqual(arch?.noteCount, 0);
+});
+
+test("extractTableOfContents extracts headings and creates valid IDs", () => {
+  const md = `# Title\n\nSome text.\n\n## Subheading 1\n\nParagraph\n\n### Nested Deep\n\n\`\`\`ts\n## Not a heading\n\`\`\`\n\n## Subheading 2\n`;
+  const toc = extractTableOfContents(md);
+  assert.strictEqual(toc.length, 4);
+  assert.strictEqual(toc[0].text, "Title");
+  assert.strictEqual(toc[0].level, 1);
+  assert.strictEqual(toc[1].text, "Subheading 1");
+  assert.strictEqual(toc[1].level, 2);
+  assert.strictEqual(toc[1].id, "heading-subheading-1");
+  assert.strictEqual(toc[2].text, "Nested Deep");
+  assert.strictEqual(toc[2].level, 3);
+  assert.strictEqual(toc[3].text, "Subheading 2");
+});
+
+test("isMarkdownTableStart and isMarkdownTableSeparator accurately identify tables", () => {
+  assert.strictEqual(isMarkdownTableStart("| Header 1 | Header 2 |"), true);
+  assert.strictEqual(isMarkdownTableStart("| col |"), true);
+  assert.strictEqual(isMarkdownTableStart("Not a table"), false);
+  assert.strictEqual(isMarkdownTableStart("| unclosed"), false);
+
+  assert.strictEqual(isMarkdownTableSeparator("|---|---|"), true);
+  assert.strictEqual(isMarkdownTableSeparator("| :--- | :---: | ---: |"), true);
+  assert.strictEqual(isMarkdownTableSeparator("| row 1 | row 2 |"), false);
+});
+
+

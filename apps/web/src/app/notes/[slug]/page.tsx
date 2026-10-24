@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { FileText, Clock, FolderOpen, Tag, ArrowLeft, BookOpen } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import React from "react";
 import { ArticleReaderToolbar } from "@/components/article-reader-toolbar";
+import { SyntaxHighlighter, MarkdownTable, TableOfContents } from "@vibe-notes/ui";
+import { slugify, isMarkdownTableStart, isMarkdownTableSeparator } from "@vibe-notes/notes-core";
 
 interface NotePageProps {
   params: Promise<{ slug: string }>;
@@ -85,6 +86,9 @@ export default async function NotePage({ params }: NotePageProps) {
         </div>
       </header>
 
+      {/* Auto-Generated Table of Contents */}
+      <TableOfContents markdown={note.content} className="mb-8" />
+
       <hr className="border-border mb-8" />
 
       {/* Article Content */}
@@ -112,12 +116,13 @@ export default async function NotePage({ params }: NotePageProps) {
   );
 }
 
-/* Simple Markdown → React renderer (safe: no dangerouslySetInnerHTML) */
+/* Enhanced Markdown → React renderer with Syntax Highlighting and GFM Tables */
 function MarkdownRenderer({ content }: { content: string }) {
-  const lines = content.split("\n");
+  const lines = content.replace(/^---[\s\S]*?---\n*/, "").split("\n");
   const elements: React.ReactNode[] = [];
   let i = 0;
   let codeBlock: string[] | null = null;
+  let codeBlockLang = "";
 
   while (i < lines.length) {
     const line = lines[i];
@@ -126,16 +131,16 @@ function MarkdownRenderer({ content }: { content: string }) {
     if (line.startsWith("```")) {
       if (codeBlock !== null) {
         elements.push(
-          <pre
+          <SyntaxHighlighter
             key={`code-${i}`}
-            className="overflow-x-auto my-4 max-w-full rounded-xl bg-card border border-border/80 p-4 text-xs font-mono text-foreground shadow-xs"
-          >
-            <code>{codeBlock.join("\n")}</code>
-          </pre>
+            code={codeBlock.join("\n")}
+            language={codeBlockLang}
+          />
         );
         codeBlock = null;
       } else {
         codeBlock = [];
+        codeBlockLang = line.slice(3).trim();
       }
       i++;
       continue;
@@ -146,13 +151,36 @@ function MarkdownRenderer({ content }: { content: string }) {
       continue;
     }
 
-    // Headings
+    // GFM Table
+    if (isMarkdownTableStart(line) && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+      const tableLines: string[] = [];
+      while (i < lines.length && isMarkdownTableStart(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <MarkdownTable
+          key={`table-${i}`}
+          lines={tableLines}
+          renderInline={(t) => formatInline(t)}
+        />
+      );
+      continue;
+    }
+
+    // Headings with IDs for TOC jumping
     if (line.startsWith("### ")) {
-      elements.push(<h3 key={i}>{formatInline(line.slice(4))}</h3>);
+      const text = line.slice(4);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(<h3 key={i} id={id} className="scroll-mt-20">{formatInline(text)}</h3>);
     } else if (line.startsWith("## ")) {
-      elements.push(<h2 key={i}>{formatInline(line.slice(3))}</h2>);
+      const text = line.slice(3);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(<h2 key={i} id={id} className="scroll-mt-20">{formatInline(text)}</h2>);
     } else if (line.startsWith("# ")) {
-      elements.push(<h1 key={i}>{formatInline(line.slice(2))}</h1>);
+      const text = line.slice(2);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(<h1 key={i} id={id} className="scroll-mt-20">{formatInline(text)}</h1>);
     }
     // Blockquote
     else if (line.startsWith("> ")) {
@@ -204,12 +232,11 @@ function MarkdownRenderer({ content }: { content: string }) {
 
   if (codeBlock !== null) {
     elements.push(
-      <pre
+      <SyntaxHighlighter
         key="code-end"
-        className="overflow-x-auto my-4 max-w-full rounded-xl bg-card border border-border/80 p-4 text-xs font-mono text-foreground shadow-xs"
-      >
-        <code>{codeBlock.join("\n")}</code>
-      </pre>
+        code={codeBlock.join("\n")}
+        language={codeBlockLang}
+      />
     );
   }
 

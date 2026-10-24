@@ -287,15 +287,20 @@ export function ReadAloudPlayer({
     }
   };
 
-  const handleCycleSpeed = () => {
-    const speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
-    const nextIdx = (speeds.indexOf(speed) + 1) % speeds.length;
-    const newSpeed = speeds[nextIdx];
-    setSpeed(newSpeed);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
+  const handleSetSpeed = (newSpeed: number) => {
+    const clamped = Math.min(3.0, Math.max(1.0, parseFloat(newSpeed.toFixed(1))));
+    setSpeed(clamped);
     if (isPlaying) {
       speakSentence(currentIndex);
     }
+  };
+
+  const handleCycleSpeed = () => {
+    const speeds = [1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0];
+    const nextIdx = (speeds.findIndex((s) => Math.abs(s - speed) < 0.05) + 1) % speeds.length;
+    handleSetSpeed(speeds[nextIdx]);
   };
 
   const handleStopAndClose = () => {
@@ -391,16 +396,77 @@ export function ReadAloudPlayer({
             <SkipForward className="w-4 h-4" />
           </button>
 
-          {/* Speed Toggle */}
-          <button
-            onClick={handleCycleSpeed}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted text-xs font-mono font-medium transition-colors cursor-pointer"
-            title="Adjust reading speed"
-            aria-label="Speed"
-          >
-            <Gauge className="w-3 h-3 text-primary" />
-            <span>{speed}x</span>
-          </button>
+          {/* Speed Selector with Popover & Number Input */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted text-xs font-mono font-medium transition-colors cursor-pointer"
+              title="Adjust reading speed (1.0x - 3.0x)"
+              aria-label="Speed"
+            >
+              <Gauge className="w-3 h-3 text-primary" />
+              <span>{speed.toFixed(1)}x</span>
+            </button>
+
+            {showSpeedMenu && (
+              <div
+                className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover/98 backdrop-blur-xl border border-border rounded-xl shadow-2xl z-50 text-xs animate-in fade-in-50 zoom-in-95"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-foreground text-[11px] uppercase tracking-wider font-mono">
+                    Speed (1.0 - 3.0x)
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="1.0"
+                      max="3.0"
+                      step="0.1"
+                      value={speed}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) handleSetSpeed(val);
+                      }}
+                      className="w-14 text-center font-mono font-bold px-1.5 py-0.5 rounded bg-muted border border-border text-xs text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <span className="font-mono text-muted-foreground text-xs">x</span>
+                  </div>
+                </div>
+
+                {/* Range Slider */}
+                <input
+                  type="range"
+                  min="1.0"
+                  max="3.0"
+                  step="0.1"
+                  value={speed}
+                  onChange={(e) => handleSetSpeed(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary mb-3"
+                />
+
+                {/* Preset Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {[1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.7, 2.0, 2.5, 3.0].map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => {
+                        handleSetSpeed(preset);
+                        setShowSpeedMenu(false);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[11px] font-mono cursor-pointer transition-colors ${
+                        Math.abs(speed - preset) < 0.05
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      }`}
+                    >
+                      {preset.toFixed(1)}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Close */}
           <button

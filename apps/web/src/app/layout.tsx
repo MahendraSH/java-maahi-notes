@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { siteConfig } from "@/site.config";
 import { SiteHeader } from "@/components/site-header";
+import { DisclaimerBanner } from "@vibe-notes/ui";
 
 export const metadata: Metadata = {
   title: siteConfig.title,
@@ -19,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="antialiased min-h-screen bg-background text-foreground flex flex-col justify-between">
+        <DisclaimerBanner />
         {/* Responsive Site Header */}
         <SiteHeader />
 

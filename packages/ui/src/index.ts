@@ -11,3 +11,7 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./comp
 export { ScrollArea } from "./components/ui/scroll-area";
 export { ReadAloudPlayer, parseMarkdownToSentences, type AudioSentence } from "./components/read-aloud";
 export { ExportMenu } from "./components/export-menu";
+export { SyntaxHighlighter } from "./components/syntax-highlighter";
+export { MarkdownTable, isMarkdownTableStart, isMarkdownTableSeparator } from "./components/markdown-table";
+export { TableOfContents } from "./components/table-of-contents";
+export { DisclaimerBanner } from "./components/disclaimer-banner";

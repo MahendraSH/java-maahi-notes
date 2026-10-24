@@ -6,14 +6,20 @@ import {
   Sun, Moon, Save, Clock, Tag, BookOpen, Menu, X, Trash2, Eye, Edit3, Copy,
   Globe, ShieldCheck, AlertCircle, CheckCircle2, ArrowRight, CornerDownRight,
   ExternalLink, LayoutDashboard, Sparkles, Filter, ArrowUpDown, History,
-  Layers, Pin, Calendar, Check, Keyboard, HelpCircle, Play, Video, Headphones
+  Layers, Pin, Calendar, Check, Keyboard, HelpCircle, Play, Video, Headphones,
+  Columns, GitBranch
 } from "lucide-react";
 import {
   type Note, type NoteMetadata, type FolderItem, type PublicationStatus, type Backlink,
   createSampleNotes, slugify, calculateReadingTime, buildFolderTree, searchNotes,
-  findIncomingBacklinks, type SearchOptions, markdownToPlainText
+  findIncomingBacklinks, type SearchOptions, markdownToPlainText,
+  DEFAULT_WORKSPACE_FOLDERS, extractTableOfContents
 } from "@vibe-notes/notes-core";
-import { ReadAloudPlayer, ExportMenu } from "@vibe-notes/ui";
+import {
+  ReadAloudPlayer, ExportMenu, SyntaxHighlighter,
+  MarkdownTable, isMarkdownTableStart, isMarkdownTableSeparator,
+  TableOfContents, DisclaimerBanner
+} from "@vibe-notes/ui";
 
 /* ------------------------------------------------------------------ */
 /*  Notes Store                                                       */
@@ -67,7 +73,7 @@ function useNotesStore() {
   }, []);
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
-  const folders = useMemo(() => buildFolderTree(notes), [notes]);
+  const folders = useMemo(() => buildFolderTree(notes, DEFAULT_WORKSPACE_FOLDERS), [notes]);
 
   const updateNote = useCallback((id: string, updates: Partial<Note>) => {
     setSaveStatus("saving");
@@ -192,9 +198,12 @@ export default function LocalEditorPage() {
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [initialSearchQuery, setInitialSearchQuery] = useState("");
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [editMode, setEditMode] = useState(true);
+  const [viewMode, setViewMode] = useState<"edit" | "split" | "preview">("edit");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set(DEFAULT_WORKSPACE_FOLDERS)
+  );
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -202,6 +211,88 @@ export default function LocalEditorPage() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  // Synchronize URL parameters with browser history
+  const updateUrl = useCallback((noteId: string | null, folder: string | null, tag: string | null, replace = false) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    if (noteId) {
+      const note = store.notes.find((n) => n.id === noteId);
+      params.set("note", note?.slug || noteId);
+    } else {
+      if (folder) params.set("folder", folder);
+      if (tag) params.set("tag", tag);
+    }
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `/?${newQuery}` : window.location.pathname;
+    const currentUrl = window.location.pathname + window.location.search;
+
+    if (newUrl !== currentUrl) {
+      if (replace) {
+        window.history.replaceState({ noteId, folder, tag }, "", newUrl);
+      } else {
+        window.history.pushState({ noteId, folder, tag }, "", newUrl);
+      }
+    }
+  }, [store.notes]);
+
+  // Listen to browser Back/Forward (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const noteParam = params.get("note");
+      const folderParam = params.get("folder");
+      const tagParam = params.get("tag");
+
+      if (noteParam) {
+        const match = store.notes.find((n) => n.slug === noteParam || n.id === noteParam);
+        if (match) {
+          store.setActiveNoteId(match.id);
+          setSelectedFolder(match.folder);
+          setSelectedTag(null);
+          return;
+        }
+      }
+
+      store.setActiveNoteId(null);
+      setSelectedFolder(folderParam || null);
+      setSelectedTag(tagParam || null);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [store.notes, store.setActiveNoteId]);
+
+  // On initial mount or when notes load, restore from URL if present
+  const initializedFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (initializedFromUrlRef.current || store.notes.length === 0) return;
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const noteParam = params.get("note");
+    const folderParam = params.get("folder");
+    const tagParam = params.get("tag");
+
+    if (noteParam) {
+      const match = store.notes.find((n) => n.slug === noteParam || n.id === noteParam);
+      if (match) {
+        store.setActiveNoteId(match.id);
+        setSelectedFolder(match.folder);
+        initializedFromUrlRef.current = true;
+        return;
+      }
+    }
+    if (folderParam) {
+      setSelectedFolder(folderParam);
+      initializedFromUrlRef.current = true;
+    }
+    if (tagParam) {
+      setSelectedTag(tagParam);
+      initializedFromUrlRef.current = true;
+    }
+  }, [store.notes, store.setActiveNoteId]);
 
   // Global Keyboard-First Navigation
   useEffect(() => {
@@ -228,10 +319,10 @@ export default function LocalEditorPage() {
         return;
       }
 
-      // ⌘E / Ctrl+E: Toggle Edit vs Preview Mode
+      // ⌘E / Ctrl+E: Cycle Edit -> Split -> Preview
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
-        setEditMode((prev) => !prev);
+        setViewMode((prev) => (prev === "edit" ? "split" : prev === "split" ? "preview" : "edit"));
         return;
       }
 
@@ -248,6 +339,7 @@ export default function LocalEditorPage() {
         store.setActiveNoteId(null);
         setSelectedFolder(null);
         setSelectedTag(null);
+        updateUrl(null, null, null);
         return;
       }
 
@@ -287,13 +379,14 @@ export default function LocalEditorPage() {
         }
         if (store.activeNoteId) {
           store.setActiveNoteId(null);
+          updateUrl(null, selectedFolder, selectedTag);
         }
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedFolder, searchOpen, publishModalOpen, shortcutsModalOpen, store]);
+  }, [selectedFolder, selectedTag, searchOpen, publishModalOpen, shortcutsModalOpen, store, updateUrl]);
 
   // Compute all unique tags with note counts
   const tagCounts = useMemo(() => {
@@ -462,9 +555,27 @@ export default function LocalEditorPage() {
                 key={folder.id}
                 folder={folder}
                 isSelected={selectedFolder === folder.path}
-                onClick={() => {
-                  setSelectedFolder(folder.path === selectedFolder ? null : folder.path);
+                isExpanded={expandedFolders.has(folder.path)}
+                notesInFolder={store.notes.filter((n) => n.folder === folder.path)}
+                activeNoteId={store.activeNoteId}
+                onToggleExpand={() => {
+                  setExpandedFolders((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(folder.path)) next.delete(folder.path);
+                    else next.add(folder.path);
+                    return next;
+                  });
+                }}
+                onSelectFolder={() => {
+                  const nextFolder = folder.path === selectedFolder ? null : folder.path;
+                  setSelectedFolder(nextFolder);
                   setSelectedTag(null);
+                  store.setActiveNoteId(null);
+                  updateUrl(null, nextFolder, null);
+                }}
+                onSelectNote={(noteId) => {
+                  store.setActiveNoteId(noteId);
+                  updateUrl(noteId, null, null);
                 }}
               />
             ))}
@@ -531,6 +642,9 @@ export default function LocalEditorPage() {
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Testing Phase Disclaimer */}
+        <DisclaimerBanner />
+
         {/* Top Bar */}
         <header className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-background/80 backdrop-blur-sm">
           <button
@@ -541,40 +655,73 @@ export default function LocalEditorPage() {
             <Menu className="w-4 h-4" />
           </button>
 
-          {/* Breadcrumb / Location indicator */}
-          <div className="flex items-center gap-1.5 text-sm">
+          {/* Multi-Segment Clickable Breadcrumbs */}
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap min-w-0">
+            {/* Workspace Root */}
             <button
               onClick={() => {
                 store.setActiveNoteId(null);
                 setSelectedFolder(null);
                 setSelectedTag(null);
+                updateUrl(null, null, null);
               }}
-              className="hover:text-primary transition-colors flex items-center gap-1 text-muted-foreground text-xs"
+              className="hover:text-primary transition-colors flex items-center gap-1 text-xs cursor-pointer font-medium"
+              title="Return to Workspace Index"
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span>Workspace</span>
             </button>
-            {selectedFolder && (
+
+            {/* Folder Segments */}
+            {(() => {
+              const currentFolder = store.activeNote?.folder || selectedFolder;
+              if (!currentFolder) return null;
+              const segments = currentFolder.split("/").filter(Boolean);
+              return segments.map((seg, idx) => {
+                const segPath = segments.slice(0, idx + 1).join("/");
+                const isLast = idx === segments.length - 1 && !store.activeNote;
+                return (
+                  <React.Fragment key={segPath}>
+                    <ChevronRight className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                    <button
+                      onClick={() => {
+                        setSelectedFolder(segPath);
+                        setSelectedTag(null);
+                        store.setActiveNoteId(null);
+                        updateUrl(null, segPath, null);
+                      }}
+                      className={`font-mono text-xs cursor-pointer transition-colors truncate max-w-[150px] ${
+                        isLast
+                          ? "text-foreground font-semibold"
+                          : "hover:text-primary hover:underline underline-offset-2"
+                      }`}
+                      title={`Jump to directory index: ${segPath}`}
+                    >
+                      {seg}
+                    </button>
+                  </React.Fragment>
+                );
+              });
+            })()}
+
+            {/* Tag Segment if active */}
+            {selectedTag && !store.activeNote && (
               <>
-                <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">{selectedFolder}</span>
+                <ChevronRight className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                <span className="text-xs text-foreground font-medium">#{selectedTag}</span>
               </>
             )}
-            {selectedTag && (
-              <>
-                <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">#{selectedTag}</span>
-              </>
-            )}
+
+            {/* Active Note Segment */}
             {store.activeNote && (
               <>
-                <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                <span className="text-foreground font-medium text-xs truncate max-w-[240px]">
+                <ChevronRight className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                <span className="text-foreground font-semibold text-xs truncate max-w-[260px]">
                   {store.activeNote.title || "Untitled"}
                 </span>
               </>
             )}
-          </div>
+          </nav>
 
           <div className="flex-1" />
 
@@ -627,51 +774,97 @@ export default function LocalEditorPage() {
             )}
           </button>
 
-          {/* Edit/Preview Toggle if Note Open */}
+          {/* 3-State Edit / Split / Preview View Mode Selector if Note Open */}
           {store.activeNote && (
-            <div className="flex items-center border border-border rounded-md overflow-hidden">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden bg-muted/40 p-0.5 text-xs">
               <button
-                onClick={() => setEditMode(true)}
-                className={`px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                  editMode ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                onClick={() => setViewMode("edit")}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer ${
+                  viewMode === "edit" ? "bg-background text-foreground shadow-xs" : "hover:bg-muted text-muted-foreground"
                 }`}
                 aria-label="Edit mode"
+                title="Edit raw Markdown (⌘E)"
               >
                 <Edit3 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Edit</span>
               </button>
               <button
-                onClick={() => setEditMode(false)}
-                className={`px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                  !editMode ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                onClick={() => setViewMode("split")}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer ${
+                  viewMode === "split" ? "bg-background text-foreground shadow-xs" : "hover:bg-muted text-muted-foreground"
+                }`}
+                aria-label="Split mode"
+                title="Side-by-side split screen (⌘E)"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Split</span>
+              </button>
+              <button
+                onClick={() => setViewMode("preview")}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-colors cursor-pointer ${
+                  viewMode === "preview" ? "bg-background text-foreground shadow-xs" : "hover:bg-muted text-muted-foreground"
                 }`}
                 aria-label="Preview mode"
+                title="Rendered preview (⌘E)"
               >
                 <Eye className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Preview</span>
               </button>
             </div>
           )}
         </header>
 
-        {/* Main Body: Either Note Editor OR The Complete Index Dashboard */}
+        {/* Main Body: Note Editor OR Folder File Index OR The Complete Workspace Index Dashboard */}
         <div className="flex-1 overflow-y-auto">
           {store.activeNote ? (
             <NoteEditor
               note={store.activeNote}
               allNotes={store.notes}
-              editMode={editMode}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
               onUpdate={(updates) => store.updateNote(store.activeNote!.id, updates)}
-              onDelete={() => store.deleteNote(store.activeNote!.id)}
-              onNavigateNote={(id) => store.setActiveNoteId(id)}
-              onBackToIndex={() => store.setActiveNoteId(null)}
+              onDelete={() => {
+                store.deleteNote(store.activeNote!.id);
+                updateUrl(null, selectedFolder, selectedTag);
+              }}
+              onNavigateNote={(id) => {
+                store.setActiveNoteId(id);
+                updateUrl(id, null, null);
+              }}
+              onBackToIndex={() => {
+                store.setActiveNoteId(null);
+                updateUrl(null, selectedFolder, selectedTag);
+              }}
+            />
+          ) : selectedFolder ? (
+            <FolderFileIndex
+              folderPath={selectedFolder}
+              allNotes={store.notes}
+              onSelectNote={(id) => {
+                store.setActiveNoteId(id);
+                updateUrl(id, selectedFolder, null);
+              }}
+              onCreateNote={(folder) => store.createNote(folder)}
+              onBackToIndex={() => {
+                setSelectedFolder(null);
+                updateUrl(null, null, null);
+              }}
             />
           ) : (
             <WorkspaceIndexDashboard
               notes={store.notes}
               selectedFolder={selectedFolder}
               selectedTag={selectedTag}
-              onSelectNote={(id) => store.setActiveNoteId(id)}
+              onSelectNote={(id) => {
+                store.setActiveNoteId(id);
+                updateUrl(id, null, null);
+              }}
               onCreateNote={(folder, title, tags) => store.createNote(folder, title, tags)}
-              onClearFilter={() => { setSelectedFolder(null); setSelectedTag(null); }}
+              onClearFilter={() => {
+                setSelectedFolder(null);
+                setSelectedTag(null);
+                updateUrl(null, null, null);
+              }}
               onOpenSearch={openSearchWithQuery}
             />
           )}
@@ -973,6 +1166,9 @@ function FolderComboboxPicker({
   // Compute folder note counts
   const folderCounts = useMemo(() => {
     const map = new Map<string, number>();
+    for (const f of DEFAULT_WORKSPACE_FOLDERS) {
+      map.set(f, 0);
+    }
     for (const n of allNotes) {
       if (n.folder && n.folder.trim()) {
         const f = n.folder.trim();
@@ -1453,32 +1649,239 @@ function WorkspaceIndexDashboard({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Folder Tree Item Subcomponent                                      */
+/*  Folder Tree Item Subcomponent (Code Editor-Style)                 */
 /* ------------------------------------------------------------------ */
 
 function FolderTreeItem({
   folder,
   isSelected,
-  onClick,
+  isExpanded,
+  notesInFolder,
+  activeNoteId,
+  onToggleExpand,
+  onSelectFolder,
+  onSelectNote,
 }: {
   folder: FolderItem;
   isSelected: boolean;
-  onClick: () => void;
+  isExpanded: boolean;
+  notesInFolder: Note[];
+  activeNoteId: string | null;
+  onToggleExpand: () => void;
+  onSelectFolder: () => void;
+  onSelectNote: (id: string) => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 w-full rounded-md text-sm transition-colors cursor-pointer ${
-        isSelected
-          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-          : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-      }`}
-      style={{ paddingLeft: `${(folder.depth + 1) * 12 + 8}px`, paddingTop: "6px", paddingBottom: "6px", paddingRight: "8px" }}
-    >
-      <FolderOpen className="w-4 h-4 text-primary/70 flex-shrink-0" />
-      <span className="truncate">{folder.name}</span>
-      <span className="ml-auto text-xs text-muted-foreground">{folder.noteCount}</span>
-    </button>
+    <div className="w-full">
+      <div
+        className={`group flex items-center gap-1.5 w-full rounded-md text-xs transition-colors cursor-pointer py-1.5 pr-2 ${
+          isSelected
+            ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+            : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+        }`}
+        style={{ paddingLeft: `${folder.depth * 14 + 6}px` }}
+      >
+        {/* Accordion Chevron Toggle */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="p-0.5 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground cursor-pointer transition-transform"
+          title={isExpanded ? "Collapse folder" : "Expand folder"}
+          aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5" />
+          )}
+        </button>
+
+        {/* Folder Title */}
+        <div
+          onClick={onSelectFolder}
+          className="flex items-center gap-1.5 flex-1 min-w-0"
+        >
+          {isExpanded ? (
+            <FolderOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          ) : (
+            <Folder className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          )}
+          <span className="truncate">{folder.name}</span>
+        </div>
+
+        <span className="text-[10px] text-muted-foreground/70 font-mono ml-auto">
+          {folder.noteCount}
+        </span>
+      </div>
+
+      {/* Expanded Child Files */}
+      {isExpanded && notesInFolder.length > 0 && (
+        <div className="mt-0.5 space-y-0.5">
+          {notesInFolder.map((note) => {
+            const isActive = activeNoteId === note.id;
+            return (
+              <button
+                key={note.id}
+                onClick={() => onSelectNote(note.id)}
+                className={`flex items-center gap-1.5 w-full text-left rounded-md py-1 pr-2 text-xs transition-colors cursor-pointer truncate ${
+                  isActive
+                    ? "bg-primary/15 text-primary font-medium"
+                    : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/40"
+                }`}
+                style={{ paddingLeft: `${(folder.depth + 1) * 14 + 16}px` }}
+                title={note.title}
+              >
+                <FileText className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                <span className="truncate">{note.title || "Untitled"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Folder File Index View (Main Panel Directory Index)               */
+/* ------------------------------------------------------------------ */
+
+function FolderFileIndex({
+  folderPath,
+  allNotes,
+  onSelectNote,
+  onCreateNote,
+  onBackToIndex,
+}: {
+  folderPath: string;
+  allNotes: Note[];
+  onSelectNote: (id: string) => void;
+  onCreateNote: (folder: string) => void;
+  onBackToIndex: () => void;
+}) {
+  const [filterQuery, setFilterQuery] = useState("");
+  const folderNotes = allNotes.filter(
+    (n) => n.folder === folderPath || n.folder.startsWith(`${folderPath}/`)
+  );
+
+  const filteredNotes = folderNotes.filter(
+    (n) =>
+      n.title.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      (n.description && n.description.toLowerCase().includes(filterQuery.toLowerCase())) ||
+      n.tags.some((t) => t.toLowerCase().includes(filterQuery.toLowerCase()))
+  );
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-5xl mx-auto w-full">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border mb-6">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
+            <button
+              onClick={onBackToIndex}
+              className="hover:text-primary transition-colors flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Workspace Index</span>
+            </button>
+            <ChevronRight className="w-3 h-3 text-muted-foreground/60" />
+            <span className="font-mono text-foreground font-semibold">{folderPath}</span>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <FolderOpen className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{folderPath}</h1>
+            <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-muted text-muted-foreground">
+              {folderNotes.length} {folderNotes.length === 1 ? "document" : "documents"}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => onCreateNote(folderPath)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs cursor-pointer w-fit"
+        >
+          <Plus className="w-4 h-4" />
+          <span>New Note in {folderPath.split("/").pop()}</span>
+        </button>
+      </div>
+
+      {/* Filter inside folder */}
+      <div className="relative mb-6">
+        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="text"
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          placeholder={`Filter documents in ${folderPath}…`}
+          className="w-full pl-9 pr-4 py-2 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 shadow-xs"
+        />
+      </div>
+
+      {/* Documents Grid / List */}
+      {filteredNotes.length === 0 ? (
+        <div className="p-12 text-center border-2 border-dashed border-border rounded-2xl bg-card/40">
+          <Folder className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+          <h3 className="text-sm font-semibold text-foreground">No documents found</h3>
+          <p className="text-xs text-muted-foreground mt-1 mb-4">
+            {filterQuery ? `No notes matching "${filterQuery}" in this folder.` : "This folder is currently empty."}
+          </p>
+          <button
+            onClick={() => onCreateNote(folderPath)}
+            className="px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer"
+          >
+            Create First Note
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {filteredNotes.map((note) => (
+            <div
+              key={note.id}
+              onClick={() => onSelectNote(note.id)}
+              className="group p-4 rounded-xl border border-border/80 bg-card hover:border-primary/50 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                    {note.title || "Untitled"}
+                  </h3>
+                  <span
+                    className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded font-medium ${
+                      note.publicationStatus === "published"
+                        ? "bg-success/15 text-success"
+                        : note.publicationStatus === "staged"
+                        ? "bg-warning/15 text-warning"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {note.publicationStatus}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2 mb-3 leading-relaxed">
+                  {note.description || note.content.slice(0, 140).replace(/[#*`\n]/g, " ") || "No description."}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/40">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {note.tags.slice(0, 3).map((t) => (
+                    <span key={t} className="px-1.5 py-0.2 rounded bg-muted text-[10px]">
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+                <span className="font-mono text-[10px]">
+                  {note.readingTimeMinutes || 1} min read
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1491,7 +1894,8 @@ function FolderTreeItem({
 function NoteEditor({
   note,
   allNotes,
-  editMode,
+  viewMode,
+  onViewModeChange,
   onUpdate,
   onDelete,
   onNavigateNote,
@@ -1499,7 +1903,8 @@ function NoteEditor({
 }: {
   note: Note;
   allNotes: Note[];
-  editMode: boolean;
+  viewMode: "edit" | "split" | "preview";
+  onViewModeChange: (mode: "edit" | "split" | "preview") => void;
   onUpdate: (updates: Partial<Note>) => void;
   onDelete: () => void;
   onNavigateNote: (id: string) => void;
@@ -1538,7 +1943,7 @@ function NoteEditor({
   }, [note, allNotes]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 md:p-10">
+    <div className={viewMode === "split" ? "w-full max-w-7xl mx-auto p-4 md:p-8" : "max-w-4xl mx-auto p-6 md:p-10"}>
       {/* Back to index link */}
       <button
         onClick={onBackToIndex}
@@ -1621,6 +2026,17 @@ function NoteEditor({
             )}
           </button>
 
+          {/* 1-Click Read Aloud (TTS) */}
+          <button
+            type="button"
+            onClick={() => setIsReadingAloud(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/60 hover:bg-card text-xs font-medium text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Listen to note with Read-Aloud TTS player and speed control"
+          >
+            <Headphones className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Read Aloud</span>
+          </button>
+
           {/* Export & Copy Menu */}
           <ExportMenu note={note} onTriggerReadAloud={() => setIsReadingAloud(true)} />
 
@@ -1635,8 +2051,8 @@ function NoteEditor({
         </div>
       </div>
 
-      {/* Content */}
-      {editMode ? (
+      {/* Content Area */}
+      {viewMode === "edit" ? (
         <textarea
           value={note.content}
           onChange={(e) => onUpdate({ content: e.target.value })}
@@ -1645,12 +2061,43 @@ function NoteEditor({
           aria-label="Note content"
           spellCheck={false}
         />
-      ) : (
+      ) : viewMode === "preview" ? (
         <MarkdownPreview
           content={note.content}
           allNotes={allNotes}
           onNavigateNote={onNavigateNote}
         />
+      ) : (
+        /* Split-Pane Side-by-Side */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[60vh]">
+          <div className="flex flex-col">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><Edit3 className="w-3.5 h-3.5" /> Markdown Source</span>
+              <span className="text-[10px] text-muted-foreground/60 font-mono">Live Sync</span>
+            </div>
+            <textarea
+              value={note.content}
+              onChange={(e) => onUpdate({ content: e.target.value })}
+              className="w-full flex-1 min-h-[60vh] p-4 rounded-xl border border-border/80 bg-background/50 focus:bg-background focus:border-primary/50 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-muted-foreground/40 transition-colors shadow-inner"
+              placeholder="Start writing your Markdown notes here… Use [[Note Title]] for note-to-note links."
+              aria-label="Note content source"
+              spellCheck={false}
+            />
+          </div>
+          <div className="flex flex-col">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center justify-between">
+              <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5" /> Live Preview</span>
+              <span className="text-[10px] text-muted-foreground/60 font-mono">Rendered Output</span>
+            </div>
+            <div className="flex-1 p-5 rounded-xl border border-border/80 bg-card/30 overflow-y-auto max-h-[75vh]">
+              <MarkdownPreview
+                content={note.content}
+                allNotes={allNotes}
+                onNavigateNote={onNavigateNote}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Backlinks & Linked References Section */}
@@ -1720,9 +2167,12 @@ function MarkdownPreview({
     if (line.startsWith("```")) {
       if (codeBlock !== null) {
         elements.push(
-          <pre key={`code-${i}`} className="bg-muted border border-border rounded-lg p-4 overflow-x-auto mb-4 text-sm leading-relaxed font-mono">
-            <code>{codeBlock.join("\n")}</code>
-          </pre>
+          <div key={`code-${i}`} className="my-4">
+            <SyntaxHighlighter
+              code={codeBlock.join("\n")}
+              language={codeBlockLang}
+            />
+          </div>
         );
         codeBlock = null;
       } else {
@@ -1738,13 +2188,48 @@ function MarkdownPreview({
       continue;
     }
 
-    // Headings
+    // GFM Table
+    if (isMarkdownTableStart(line) && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+      const tableLines: string[] = [];
+      while (i < lines.length && isMarkdownTableStart(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <MarkdownTable
+          key={`table-${i}`}
+          lines={tableLines}
+          renderInline={(t) => formatInline(t, allNotes, onNavigateNote)}
+        />
+      );
+      continue;
+    }
+
+    // Headings with anchor IDs for Table of Contents
     if (line.startsWith("### ")) {
-      elements.push(<h3 key={i} className="text-lg font-semibold mt-5 mb-2">{formatInline(line.slice(4), allNotes, onNavigateNote)}</h3>);
+      const text = line.slice(4);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(
+        <h3 key={i} id={id} className="text-lg font-semibold mt-5 mb-2 scroll-mt-20">
+          {formatInline(text, allNotes, onNavigateNote)}
+        </h3>
+      );
     } else if (line.startsWith("## ")) {
-      elements.push(<h2 key={i} className="text-xl font-semibold mt-7 mb-3 border-b border-border pb-2">{formatInline(line.slice(3), allNotes, onNavigateNote)}</h2>);
+      const text = line.slice(3);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(
+        <h2 key={i} id={id} className="text-xl font-semibold mt-7 mb-3 border-b border-border pb-2 scroll-mt-20">
+          {formatInline(text, allNotes, onNavigateNote)}
+        </h2>
+      );
     } else if (line.startsWith("# ")) {
-      elements.push(<h1 key={i} className="text-2xl font-bold mt-4 mb-3">{formatInline(line.slice(2), allNotes, onNavigateNote)}</h1>);
+      const text = line.slice(2);
+      const id = `heading-${slugify(text.replace(/[*`_]/g, ""))}`;
+      elements.push(
+        <h1 key={i} id={id} className="text-2xl font-bold mt-4 mb-3 scroll-mt-20">
+          {formatInline(text, allNotes, onNavigateNote)}
+        </h1>
+      );
     }
     // Blockquote
     else if (line.startsWith("> ")) {
@@ -1805,13 +2290,21 @@ function MarkdownPreview({
   // Close unclosed code block
   if (codeBlock !== null) {
     elements.push(
-      <pre key="code-end" className="bg-muted border border-border rounded-lg p-4 overflow-x-auto mb-4 text-sm leading-relaxed font-mono">
-        <code>{codeBlock.join("\n")}</code>
-      </pre>
+      <div key="code-end" className="my-4">
+        <SyntaxHighlighter
+          code={codeBlock.join("\n")}
+          language={codeBlockLang}
+        />
+      </div>
     );
   }
 
-  return <div className="note-content">{elements}</div>;
+  return (
+    <div className="note-content">
+      <TableOfContents markdown={content} className="mb-6" />
+      {elements}
+    </div>
+  );
 }
 
 function formatInline(
@@ -2170,6 +2663,26 @@ function PublishingSafetyModal({
 }) {
   const publishedNotes = notes.filter((n) => n.publicationStatus === "published");
   const stagedNotes = notes.filter((n) => n.publicationStatus === "staged");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  const handleExportToGit = async () => {
+    setIsExporting(true);
+    setExportMessage(null);
+    try {
+      const res = await fetch("/api/publish/export", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setExportMessage(`Successfully exported ${data.count} note(s) to content/published/ for Git commit & Vercel deployment!`);
+      } else {
+        alert(data.error || "Export failed");
+      }
+    } catch (err: any) {
+      alert("Export request failed: " + err?.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -2198,6 +2711,37 @@ function PublishingSafetyModal({
                 Local notes are private by default, saved in <code>content/notes/</code>, and excluded from Git commits by <code>.gitignore</code>. The public website (port 3001) serves <strong>only</strong> notes explicitly marked as &ldquo;Published&rdquo;.
               </p>
             </div>
+          </div>
+
+          {/* Git & Vercel Export Panel */}
+          <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-primary" />
+                  <h4 className="text-xs font-semibold text-foreground">Export Published Notes to Git</h4>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Vercel Pipeline</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Copies all notes currently marked as <strong>Published</strong> ({publishedNotes.length}) into the tracked <code>content/published/</code> directory. Push your Git repo to trigger automatic static cloud deployments on Vercel or Netlify.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleExportToGit}
+                disabled={isExporting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 whitespace-nowrap"
+              >
+                <Save className="w-3.5 h-3.5" />
+                {isExporting ? "Exporting…" : "Export to Git"}
+              </button>
+            </div>
+            {exportMessage && (
+              <div className="p-2.5 rounded-lg bg-success/15 border border-success/30 text-xs text-success flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{exportMessage}</span>
+              </div>
+            )}
           </div>
 
           {/* Staged Notes Section */}
@@ -2271,7 +2815,7 @@ function PublishingSafetyModal({
           <div className="p-3 rounded-lg bg-muted/50 border border-border text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
             <div>
-              <strong>Deployment Notice:</strong> Publishing marks content ready for public display. A GitHub push triggers cloud deployment only if your repository&rsquo;s deployment workflow is configured.
+              <strong>Deployment Notice:</strong> Publishing marks content ready for public display. Clicking &ldquo;Export to Git&rdquo; writes files to <code>content/published/</code> ready to commit and push to Vercel.
             </div>
           </div>
         </div>

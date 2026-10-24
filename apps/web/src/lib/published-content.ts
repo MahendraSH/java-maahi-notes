@@ -12,6 +12,11 @@ import { createSampleNotes } from "@vibe-notes/notes-core";
 
 function findContentNotesDir(): string | null {
   const candidates = [
+    // 1. First check tracked published notes (for Vercel production deployment)
+    path.join(process.cwd(), "content/published"),
+    path.join(process.cwd(), "../../content/published"),
+    path.join(process.cwd(), "../content/published"),
+    // 2. Fall back to local notes directory if running in local monorepo
     path.join(process.cwd(), "content/notes"),
     path.join(process.cwd(), "../../content/notes"),
     path.join(process.cwd(), "../content/notes"),

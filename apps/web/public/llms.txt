@@ -12,8 +12,9 @@ This document provides concise, machine-readable architectural context for AI co
 - **Core Stacks:**
   - `apps/local`: Next.js 16 (App Router), React 19, Tailwind CSS v4, port 3000. Full Markdown editor, local disk storage, fuzzy search, backlinks, publishing boundary.
   - `apps/web`: Next.js 16 (App Router), React 19, Tailwind CSS v4, port 3001. Read-only static knowledge base deployed on Vercel (`https://vibe-notes-demo.vercel.app/`).
-  - `packages/notes-core`: Pure TypeScript business logic (path safety, frontmatter parsing, folder hierarchy tree, reading time calculation, full-text search, backlinks).
-  - `packages/ui`: Shared design tokens, styles, and reusable UI primitives.
+  - `packages/notes-core`: Pure TypeScript business logic (path safety, frontmatter parsing, folder hierarchy tree, reading time calculation, full-text search, backlinks, TOC extraction).
+  - `packages/ui`: Shared design tokens, styles, syntax highlighter, tables, and reusable UI primitives.
+- **Site Configuration:** `apps/web/src/site.config.ts` controls all public digital garden metadata, author info, and nav items.
 
 ---
 
@@ -47,17 +48,26 @@ yarn typecheck
 ## 3. Data & Storage Architecture
 
 - **Local Storage Directory:** `/content/notes/*.md`
+- **Published Git Export Directory:** `/content/published/*.md` (tracked in Git for automated Vercel builds)
 - **Safety Boundary:** All private notes are strictly stored on the local filesystem and ignored in `.gitignore`.
-- **Note Schema (`Note`):**
-  - `id`: unique string identifier (`note-<timestamp>`)
-  - `title`: human-readable title
-  - `slug`: URL-safe slug
-  - `folder`: hierarchical folder path (e.g. `Architecture/DistributedSystems`)
-  - `tags`: array of string tags (e.g. `["kafka", "architecture"]`)
-  - `publicationStatus`: `'local' | 'staged' | 'published'`
-  - `readingTimeMinutes`: estimated reading time (words / 200 wpm)
-  - `createdAt` / `updatedAt`: ISO timestamps
-  - `content`: raw Markdown text with YAML frontmatter
+- **Content Ingestion in `apps/web`:** Direct filesystem reader in `apps/web/src/lib/published-content.ts` dynamically parses `.md` files in `content/published/` or `content/notes/` where `publicationStatus: "published"`.
+- **Default Workspace Folders:** `Backend Mastery`, `Frontend Mastery`, `Architecture`, `Books`, `Certificates & Courses`, `Complete Roadmaps`, `Miscellaneous` (exported as `DEFAULT_WORKSPACE_FOLDERS` in `packages/notes-core`).
+
+### Copy-Paste YAML Frontmatter Template:
+```yaml
+---
+id: "note-1792824825147"
+title: "Introduction to Java"
+slug: "introduction-to-java"
+folder: "Backend Mastery"
+tags: ["java", "jvm", "backend"]
+publicationStatus: "published" # 'local' | 'staged' | 'published'
+readingTimeMinutes: 4
+description: "In-depth architectural overview of the JVM execution pipeline."
+createdAt: "2026-10-24T06:53:45.147Z"
+updatedAt: "2026-10-24T06:54:06.738Z"
+---
+```
 
 ---
 
@@ -69,7 +79,7 @@ yarn typecheck
 2. **Keyboard-First Workflow:**
    - <kbd>⌘K</kbd> / <kbd>Ctrl+K</kbd>: Fuzzy search command palette.
    - <kbd>⌘N</kbd> / <kbd>Ctrl+N</kbd>: Create note in active folder.
-   - <kbd>⌘E</kbd> / <kbd>Ctrl+E</kbd>: Toggle Markdown Edit vs Preview.
+   - <kbd>⌘E</kbd> / <kbd>Ctrl+E</kbd>: Cycle Markdown Edit, Split-Screen, and Preview modes.
    - <kbd>⌘I</kbd> / <kbd>Ctrl+I</kbd>: Return to Workspace Index Dashboard.
    - <kbd>⌘B</kbd> / <kbd>Ctrl+B</kbd>: Toggle Sidebar collapsed/expanded.
    - <kbd>⌘P</kbd> / <kbd>Ctrl+P</kbd>: Open Publishing Safety Boundary review hub.
@@ -102,4 +112,3 @@ yarn typecheck
 - **Contact:** `https://mahendrash.vercel.app/contact`
 - **Email:** `mahendrashongunti@gmail.com`
 - **License:** MIT License
-

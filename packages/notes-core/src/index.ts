@@ -52,6 +52,23 @@ export interface PublicationManifest {
   notes: NoteMetadata[];
 }
 
+export const DEFAULT_WORKSPACE_FOLDERS = [
+  "Backend Mastery",
+  "Frontend Mastery",
+  "Architecture",
+  "Books",
+  "Certificates & Courses",
+  "Complete Roadmaps",
+  "Miscellaneous",
+] as const;
+
+export interface TocItem {
+  id: string;
+  text: string;
+  level: number;
+  slug: string;
+}
+
 /**
  * Validates path against directory traversal and dangerous characters.
  */
@@ -409,8 +426,19 @@ export function searchNotes(
 /**
  * Builds a structured folder tree from note paths.
  */
-export function buildFolderTree(notes: { folder: string }[]): FolderItem[] {
+export function buildFolderTree(
+  notes: { folder: string }[],
+  includeDefaults: readonly string[] = []
+): FolderItem[] {
   const directCounts: Record<string, number> = {};
+
+  // Seed default folders with 0 count so user can immediately see them
+  for (const def of includeDefaults) {
+    const rawDef = def ? def.trim().replace(/^\/+|\/+$/g, '') : '';
+    if (rawDef) {
+      directCounts[rawDef] = 0;
+    }
+  }
 
   for (const n of notes) {
     const rawFolder = n.folder ? n.folder.trim().replace(/^\/+|\/+$/g, '') : '';
@@ -454,6 +482,69 @@ export function buildFolderTree(notes: { folder: string }[]): FolderItem[] {
   }
 
   return items.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Extracts table of contents headings (h1, h2, h3) with clean slugs and anchor IDs.
+ */
+export function extractTableOfContents(markdown: string): TocItem[] {
+  const cleanBody = markdown.replace(/^---[\s\S]*?---\n*/, "");
+  const lines = cleanBody.split("\n");
+  const toc: TocItem[] = [];
+  let inCode = false;
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) continue;
+
+    const match = line.match(/^(#{1,3})\s+(.+)$/);
+    if (match) {
+      const level = match[1].length;
+      const rawText = match[2].trim();
+      const cleanText = rawText
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\[\[(.*?)\]\]/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .trim();
+      const slug = slugify(cleanText);
+      const id = `heading-${slug}`;
+
+      toc.push({
+        id,
+        text: cleanText,
+        level,
+        slug,
+      });
+    }
+  }
+
+  return toc;
+}
+
+/**
+ * Detects if a markdown line starts a table row (| col | col |).
+ */
+export function isMarkdownTableStart(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|");
+}
+
+/**
+ * Detects if a markdown line is a table header separator (|---|---|).
+ */
+export function isMarkdownTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return false;
+  const parts = trimmed
+    .slice(1, -1)
+    .split("|")
+    .map((p) => p.trim());
+  return parts.length > 0 && parts.every((p) => /^:?-+:?$/.test(p));
 }
 
 
@@ -561,6 +652,75 @@ Start typing your notes, system architecture designs, or code snippets here...
 - Add code examples for any programming language (Java, Go, Rust, Python, TypeScript)
 - Use #tags or folders to organize your knowledge
 - Link to [[Getting Started & TODO Checklist]]
+`,
+    },
+    {
+      id: 'authors-writing-guide',
+      title: "Author's Writing Handbook & Documentation Standards",
+      slug: 'authors-writing-guide',
+      folder: 'Guides',
+      tags: ['Guide', 'Markdown', 'WritingStandards', 'TTS'],
+      createdAt: now,
+      updatedAt: now,
+      publicationStatus: 'published',
+      readingTimeMinutes: 4,
+      description: 'How to craft clean notes with YAML frontmatter, wiki-links, code blocks with syntax highlighting, GFM tables, and voice player cues.',
+      content: `# Author's Writing Handbook & Documentation Standards
+
+Welcome to the **Author's Writing Guide** for Vibe Notes. This handbook details formatting standards for maximum readability, relational backlinks, and audio narration.
+
+## 1. Structuring Notes with Frontmatter
+Every note in \`content/notes/\` starts with YAML frontmatter:
+\`\`\`yaml
+---
+id: "note-spring-boot-architecture"
+title: "Spring Boot Architecture & Internals"
+slug: "spring-boot-architecture"
+folder: "Backend Mastery"
+tags: ["java", "spring-boot", "architecture"]
+publicationStatus: "published"
+description: "In-depth guide to Spring Boot auto-configuration and bean lifecycles."
+---
+\`\`\`
+
+## 2. Adding Bidirectional Wiki-Links
+Vibe Notes supports native internal links:
+\`\`\`markdown
+Review [[Getting Started & TODO Checklist]] and [[Keyboard Shortcuts & Cheatsheet]].
+\`\`\`
+- Renders as interactive navigation button.
+- Automatically indexed into incoming and outgoing backlinks.
+
+## 3. Code Snippets with Syntax Highlighting
+Specify the language identifier after triple backticks:
+\`\`\`java
+@RestController
+@RequestMapping("/api/v1/users")
+public class UserController {
+    private final UserService userService;
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+}
+\`\`\`
+
+## 4. GitHub-Flavored Markdown (GFM) Tables
+Use ASCII pipe formatting with headers and separator:
+| Feature | Syntax | Output |
+| :--- | :--- | :--- |
+| **Wiki-Link** | \`[[Note Title]]\` | Interactive link |
+| **Code Block** | \`\`\`java ... \`\`\` | Token highlighted block |
+| **Callout** | \`> Alert text\` | Left-accented quote |
+| **TOC** | Auto-generated | Sticky section index |
+
+## 5. Callouts & Blockquotes
+> "Simplicity is prerequisite for reliability."  
+> — *Edsger W. Dijkstra*
+
+## 6. Read-Aloud (TTS) Optimization
+1. Use clear \`##\` and \`###\` headings for natural breath pauses.
+2. Avoid raw URLs; use descriptive anchor text like [Spring Boot](https://spring.io).
+3. Code snippets are replaced with polite cues like: *"[Code snippet in Java. Pausing to review.]"*.
 `,
     },
   ];

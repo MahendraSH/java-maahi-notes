@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-10-24T08:38:16.485Z",
+  "count": 3,
+  "notes": [
+    {
+      "id": "authors-writing-guide",
+      "title": "Author's Writing Handbook & Documentation Standards",
+      "slug": "authors-writing-guide",
+      "folder": "Guides",
+      "tags": [
+        "Guide",
+        "Markdown",
+        "WritingStandards",
+        "TTS"
+      ],
+      "publicationStatus": "published",
+      "description": "How to craft clean notes with YAML frontmatter, bidirectional wiki-links, syntax-highlighted code blocks, GFM tables, and voice player cues.",
+      "readingTimeMinutes": 4,
+      "updatedAt": "2026-10-24T12:00:00.000Z"
+    },
+    {
+      "id": "getting-started-and-todo",
+      "title": "Getting Started & TODO Checklist",
+      "slug": "getting-started-and-todo",
+      "folder": "General",
+      "tags": [
+        "GettingStarted",
+        "Onboarding",
+        "Todo"
+      ],
+      "publicationStatus": "published",
+      "description": "Quickstart checklist to set up your technical knowledge workspace, write your first notes, and publish to Vercel.",
+      "readingTimeMinutes": 3,
+      "updatedAt": "2026-10-23T18:00:00.000Z"
+    },
+    {
+      "id": "keyboard-shortcuts-and-cheatsheet",
+      "title": "Keyboard Shortcuts & Cheatsheet",
+      "slug": "keyboard-shortcuts-and-cheatsheet",
+      "folder": "Guides",
+      "tags": [
+        "Cheatsheet",
+        "Hotkeys",
+        "Markdown"
+      ],
+      "publicationStatus": "published",
+      "description": "Master keyboard-first navigation with ⌘K fuzzy search, ⌘N new note, and complete markdown formatting reference.",
+      "readingTimeMinutes": 3,
+      "updatedAt": "2026-10-23T18:00:00.000Z"
+    }
+  ]
+}
