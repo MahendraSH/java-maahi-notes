@@ -47,14 +47,19 @@ export function InteractiveArticleView({ note }: InteractiveArticleViewProps) {
 
   const toggleReadAloud = () => {
     if (isReadingAloud) {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
       setIsReadingAloud(false);
       setActiveSentenceIndex(null);
       setActiveWordIndex(null);
     } else {
-      setIsReadingAloud(true);
-      if (activeSentenceIndex === null) {
-        setActiveSentenceIndex(0);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.resume();
       }
+      setIsReadingAloud(true);
+      setActiveSentenceIndex(0);
+      setActiveWordIndex(0);
     }
   };
 

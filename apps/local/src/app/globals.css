@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src";
 @import "@vibe-notes/ui/globals.css";
 
 /* Local editor-specific styles */

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src";
 @import "@vibe-notes/ui/globals.css";
 
 /* Public website specific: reading-first layout with comfortable article widths */
