@@ -1,8 +1,133 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-10-24T08:38:16.485Z",
-  "count": 3,
+  "generatedAt": "2026-10-25T11:53:57.635Z",
+  "count": 14,
   "notes": [
+    {
+      "id": "note-1792928201636",
+      "title": "Java SE 21 (1Z0-830) Index",
+      "slug": "java-se-21-1z0-830-index",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep",
+      "tags": [
+        "java",
+        "certification",
+        "1z0-830",
+        "exam-prep"
+      ],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 3,
+      "updatedAt": "2026-10-25T11:50:28.954Z"
+    },
+    {
+      "id": "note-1792927900227",
+      "title": "Deep Dive: Operator Evaluation",
+      "slug": "deep-dive-operator-evaluation",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 5,
+      "updatedAt": "2026-10-25T11:31:57.487Z"
+    },
+    {
+      "id": "note-1792927774529",
+      "title": "Wrapper Classes",
+      "slug": "wrapper-classes",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 6,
+      "updatedAt": "2026-10-25T11:29:51.121Z"
+    },
+    {
+      "id": "note-1792927645364",
+      "title": "Type Casting",
+      "slug": "type-casting",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 5,
+      "updatedAt": "2026-10-25T11:27:54.527Z"
+    },
+    {
+      "id": "note-1792927130040",
+      "title": "Numeric Promotions & Expressions",
+      "slug": "numeric-promotions-and-expressions",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 7,
+      "updatedAt": "2026-10-25T11:19:16.938Z"
+    },
+    {
+      "id": "note-1792926736858",
+      "title": "Learning Objectives",
+      "slug": "learning-objectives",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 1,
+      "updatedAt": "2026-10-25T11:17:07.257Z"
+    },
+    {
+      "id": "note-1792926973055",
+      "title": "Operators: Part 2",
+      "slug": "operators-part-2",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 2,
+      "updatedAt": "2026-10-25T11:16:38.865Z"
+    },
+    {
+      "id": "note-1792926836487",
+      "title": "Operators: Part 1",
+      "slug": "operators-part-1",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 6,
+      "updatedAt": "2026-10-25T11:16:06.993Z"
+    },
+    {
+      "id": "note-1792840808319",
+      "title": "Course Overview",
+      "slug": "course-overview",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 2,
+      "updatedAt": "2026-10-25T11:11:03.402Z"
+    },
+    {
+      "id": "note-1792842061810",
+      "title": "Module 1 Overview",
+      "slug": "module-1-overview",
+      "folder": "Certificates & Courses/java-se-21-1z0-830-cert-prep/module-01-handling-values-and-expressions",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 1,
+      "updatedAt": "2026-10-25T11:10:54.682Z"
+    },
+    {
+      "id": "note-1792834492603",
+      "title": "demo-testing-publish",
+      "slug": "demo-testing-publish",
+      "folder": "Architecture",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 1,
+      "updatedAt": "2026-10-24T09:35:19.570Z"
+    },
+    {
+      "id": "note-1792833906117",
+      "title": "intro to java",
+      "slug": "intro-to-java",
+      "folder": "Backend Mastery/java",
+      "tags": [],
+      "publicationStatus": "published",
+      "readingTimeMinutes": 1,
+      "updatedAt": "2026-10-24T09:33:11.151Z"
+    },
     {
       "id": "authors-writing-guide",
       "title": "Author's Writing Handbook & Documentation Standards",
@@ -10,29 +135,12 @@
       "folder": "Guides",
       "tags": [
         "Guide",
-        "Markdown",
-        "WritingStandards",
-        "TTS"
+        "WritingStandards"
       ],
       "publicationStatus": "published",
-      "description": "How to craft clean notes with YAML frontmatter, bidirectional wiki-links, syntax-highlighted code blocks, GFM tables, and voice player cues.",
-      "readingTimeMinutes": 4,
-      "updatedAt": "2026-10-24T12:00:00.000Z"
-    },
-    {
-      "id": "getting-started-and-todo",
-      "title": "Getting Started & TODO Checklist",
-      "slug": "getting-started-and-todo",
-      "folder": "General",
-      "tags": [
-        "GettingStarted",
-        "Onboarding",
-        "Todo"
-      ],
-      "publicationStatus": "published",
-      "description": "Quickstart checklist to set up your technical knowledge workspace, write your first notes, and publish to Vercel.",
-      "readingTimeMinutes": 3,
-      "updatedAt": "2026-10-23T18:00:00.000Z"
+      "description": "How to craft clean notes with YAML frontmatter, wiki-links, code blocks with syntax highlighting, GFM tables, and voice player cues.",
+      "readingTimeMinutes": 2,
+      "updatedAt": "2026-10-24T09:19:04.501Z"
     },
     {
       "id": "keyboard-shortcuts-and-cheatsheet",
@@ -47,7 +155,7 @@
       "publicationStatus": "published",
       "description": "Master keyboard-first navigation with ⌘K fuzzy search, ⌘N new note, and complete markdown formatting reference.",
       "readingTimeMinutes": 3,
-      "updatedAt": "2026-10-23T18:00:00.000Z"
+      "updatedAt": "2026-10-24T09:17:33.184Z"
     }
   ]
 }

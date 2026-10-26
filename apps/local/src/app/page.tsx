@@ -513,15 +513,19 @@ export default function LocalEditorPage() {
       >
         {/* Sidebar Header */}
         <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
-          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#17191C] flex items-center justify-center">
-            <svg viewBox="0 0 64 64" className="w-5 h-5">
-              <path d="M12 46V18h8.2L32 33.1 43.8 18H52v28h-9V31.2L32 43 21 31.2V46z" fill="#F3F4F6"/>
-              <circle cx="51" cy="49" r="4.5" fill="#F89820"/>
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#111317] border border-sidebar-border flex items-center justify-center p-1">
+            <svg viewBox="0 0 64 64" className="w-full h-full">
+              <path d="M26 15c2-3 5-3 5 0s-3 3-1 6" fill="none" stroke="#E76F00" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M34 13c2.5-3 6-3 6 0s-3.5 3-1.5 6" fill="none" stroke="#F89820" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M19 28h22c0 9-4.5 15-11 15s-11-6-11-15z" fill="#F3F4F6"/>
+              <path d="M41 31h4a5 5 0 0 1 0 10h-5" fill="none" stroke="#F3F4F6" strokeWidth="3" strokeLinecap="round"/>
+              <path d="M16 48c7 3 21 3 28 0" fill="none" stroke="#5382A1" strokeWidth="3.5" strokeLinecap="round"/>
+              <circle cx="49" cy="48" r="3.5" fill="#E76F00"/>
             </svg>
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="font-semibold text-sidebar-foreground text-sm tracking-wide">Vibe Notes</span>
-            <span className="text-[10px] text-muted-foreground font-mono">Developer Workspace</span>
+            <span className="font-semibold text-sidebar-foreground text-sm tracking-wide">Java Fullstack Notes</span>
+            <span className="text-[10px] text-muted-foreground font-mono">Knowledge Base Workspace</span>
           </div>
         </div>
 

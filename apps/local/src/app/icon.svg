@@ -1,6 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Vibe Notes</title>
-  <rect width="64" height="64" rx="15" fill="#17191C"/>
-  <path d="M12 46V18h8.2L32 33.1 43.8 18H52v28h-9V31.2L32 43 21 31.2V46z" fill="#F3F4F6"/>
-  <circle cx="51" cy="49" r="4.5" fill="#F89820"/>
+  <title id="title">Java Fullstack &amp; Architecture Notes</title>
+  <defs>
+    <linearGradient id="javaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E76F00" />
+      <stop offset="100%" stop-color="#5382A1" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#111317"/>
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="#2D333B" stroke-width="1.5"/>
+  <!-- Java Cup / Steam Icon -->
+  <!-- Steam Lines -->
+  <path d="M26 15c2-3 5-3 5 0s-3 3-1 6" fill="none" stroke="#E76F00" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M34 13c2.5-3 6-3 6 0s-3.5 3-1.5 6" fill="none" stroke="#F89820" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Cup Base -->
+  <path d="M19 28h22c0 9-4.5 15-11 15s-11-6-11-15z" fill="#F3F4F6"/>
+  <!-- Cup Handle -->
+  <path d="M41 31h4a5 5 0 0 1 0 10h-5" fill="none" stroke="#F3F4F6" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Base Saucer Curve -->
+  <path d="M16 48c7 3 21 3 28 0" fill="none" stroke="#5382A1" stroke-width="3" stroke-linecap="round"/>
+  <!-- Accent Tech Dot -->
+  <circle cx="49" cy="48" r="3.5" fill="#E76F00"/>
 </svg>

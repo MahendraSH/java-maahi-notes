@@ -4,8 +4,8 @@ title: "Keyboard Shortcuts & Cheatsheet"
 slug: "keyboard-shortcuts-and-cheatsheet"
 folder: "Guides"
 tags: ["Cheatsheet", "Hotkeys", "Markdown"]
-createdAt: "2026-10-23T18:00:00.000Z"
-updatedAt: "2026-10-23T18:00:00.000Z"
+createdAt: "2026-10-24T09:17:33.184Z"
+updatedAt: "2026-10-24T09:17:33.184Z"
 publicationStatus: "published"
 description: "Master keyboard-first navigation with ⌘K fuzzy search, ⌘N new note, and complete markdown formatting reference."
 readingTimeMinutes: 3

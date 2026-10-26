@@ -10,6 +10,19 @@ export const metadata: Metadata = {
   icons: {
     icon: "/icon.svg",
   },
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+      "max-video-preview": -1,
+      "max-image-preview": "none",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({
@@ -32,10 +45,14 @@ export default function RootLayout({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 text-xs">
               <div className="space-y-3 md:col-span-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-[#17191C] border border-border flex items-center justify-center">
-                    <svg viewBox="0 0 64 64" className="w-3.5 h-3.5">
-                      <path d="M12 46V18h8.2L32 33.1 43.8 18H52v28h-9V31.2L32 43 21 31.2V46z" fill="#F3F4F6"/>
-                      <circle cx="51" cy="49" r="4.5" fill="#F89820"/>
+                  <div className="w-6 h-6 rounded-md bg-[#111317] border border-border flex items-center justify-center p-0.5">
+                    <svg viewBox="0 0 64 64" className="w-full h-full">
+                      <path d="M26 15c2-3 5-3 5 0s-3 3-1 6" fill="none" stroke="#E76F00" strokeWidth="3" strokeLinecap="round"/>
+                      <path d="M34 13c2.5-3 6-3 6 0s-3.5 3-1.5 6" fill="none" stroke="#F89820" strokeWidth="3" strokeLinecap="round"/>
+                      <path d="M19 28h22c0 9-4.5 15-11 15s-11-6-11-15z" fill="#F3F4F6"/>
+                      <path d="M41 31h4a5 5 0 0 1 0 10h-5" fill="none" stroke="#F3F4F6" strokeWidth="3" strokeLinecap="round"/>
+                      <path d="M16 48c7 3 21 3 28 0" fill="none" stroke="#5382A1" strokeWidth="3.5" strokeLinecap="round"/>
+                      <circle cx="49" cy="48" r="3.5" fill="#E76F00"/>
                     </svg>
                   </div>
                   <span className="font-bold text-sm text-foreground">{siteConfig.title}</span>
