@@ -844,3 +844,343 @@ function escapeAndFormat(text: string): string {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\[\[(.*?)\]\]/g, "<u>$1</u>");
 }
+
+/* ------------------------------------------------------------------ */
+/*  Speech-Aware Markdown Block Parser                                */
+/* ------------------------------------------------------------------ */
+
+export interface AudioSentence {
+  id: number;
+  index: number;
+  text: string;
+  cleanText: string;
+  words: string[];
+  isCodeBlock: boolean;
+  lang?: string;
+}
+
+export type MarkdownBlockType =
+  | "heading"
+  | "paragraph"
+  | "blockquote"
+  | "list-ul"
+  | "list-ol"
+  | "code"
+  | "table"
+  | "hr";
+
+export interface MarkdownBlock {
+  id: string;
+  type: MarkdownBlockType;
+  level?: number;
+  text?: string;
+  sentences: AudioSentence[];
+  lang?: string;
+  code?: string;
+  items?: { sentences: AudioSentence[] }[];
+  lines?: string[];
+}
+
+export function cleanMarkdownInline(raw: string): string {
+  return raw
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^>\s+/, "")
+    .replace(/^[-*+]\s+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\[(.*?)\]\]/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .trim();
+}
+
+/**
+ * Parses markdown into structured blocks with speech-ready sentence and word tokens.
+ * Guarantees unified sentence indexing between the Audio TTS player and the rendered article DOM.
+ */
+export function parseMarkdownBlocks(markdown: string): {
+  blocks: MarkdownBlock[];
+  sentences: AudioSentence[];
+} {
+  const cleanBody = markdown.replace(/^---[\s\S]*?---\n*/, "");
+  const lines = cleanBody.split("\n");
+  const blocks: MarkdownBlock[] = [];
+  const allSentences: AudioSentence[] = [];
+
+  let sentenceCounter = 0;
+  let i = 0;
+  let blockCounter = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Code block
+    if (line.startsWith("```")) {
+      const lang = line.slice(3).trim() || "code";
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length && lines[i].startsWith("```")) {
+        i++; // skip closing ```
+      }
+
+      const cueClean = `Code example in ${lang}. Pausing to review.`;
+      const codeSentence: AudioSentence = {
+        id: sentenceCounter + 1,
+        index: sentenceCounter,
+        text: `[Code snippet in ${lang}. Pausing to review.]`,
+        cleanText: cueClean,
+        words: cueClean.split(/\s+/).filter(Boolean),
+        isCodeBlock: true,
+        lang,
+      };
+
+      sentenceCounter++;
+      allSentences.push(codeSentence);
+
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "code",
+        lang,
+        code: codeLines.join("\n"),
+        sentences: [codeSentence],
+      });
+      continue;
+    }
+
+    // GFM Table
+    if (isMarkdownTableStart(line) && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+      const tableLines: string[] = [];
+      while (i < lines.length && isMarkdownTableStart(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "table",
+        lines: tableLines,
+        sentences: [],
+      });
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith("#")) {
+      const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length;
+        const rawText = headingMatch[2].trim();
+        const clean = cleanMarkdownInline(rawText);
+
+        const headingSentence: AudioSentence = {
+          id: sentenceCounter + 1,
+          index: sentenceCounter,
+          text: rawText,
+          cleanText: clean,
+          words: clean.split(/\s+/).filter(Boolean),
+          isCodeBlock: false,
+        };
+
+        sentenceCounter++;
+        allSentences.push(headingSentence);
+
+        blocks.push({
+          id: `block-${blockCounter++}`,
+          type: "heading",
+          level,
+          text: rawText,
+          sentences: [headingSentence],
+        });
+        i++;
+        continue;
+      }
+    }
+
+    // Horizontal Rule
+    if (/^-{3,}$/.test(line.trim()) || /^\*{3,}$/.test(line.trim())) {
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "hr",
+        sentences: [],
+      });
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith("> ")) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith("> ")) {
+        quoteLines.push(lines[i].slice(2).trim());
+        i++;
+      }
+      const rawQuote = quoteLines.join(" ");
+      const cleanQuote = cleanMarkdownInline(rawQuote);
+      const parts = cleanQuote.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+      const originalParts = rawQuote.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+
+      const quoteSentences: AudioSentence[] = [];
+      for (let k = 0; k < parts.length; k++) {
+        const cText = parts[k].trim();
+        const oText = originalParts[k]?.trim() || cText;
+        const sent: AudioSentence = {
+          id: sentenceCounter + 1,
+          index: sentenceCounter,
+          text: oText,
+          cleanText: cText,
+          words: cText.split(/\s+/).filter(Boolean),
+          isCodeBlock: false,
+        };
+        sentenceCounter++;
+        allSentences.push(sent);
+        quoteSentences.push(sent);
+      }
+
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "blockquote",
+        sentences: quoteSentences,
+      });
+      continue;
+    }
+
+    // Unordered List
+    if (line.match(/^[-*]\s/)) {
+      const items: { sentences: AudioSentence[] }[] = [];
+      const listSentences: AudioSentence[] = [];
+
+      while (i < lines.length && lines[i].match(/^[-*]\s/)) {
+        const rawItem = lines[i].replace(/^[-*]\s+/, "").trim();
+        const cleanItem = cleanMarkdownInline(rawItem);
+        const parts = cleanItem.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+        const origParts = rawItem.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+
+        const itemSentences: AudioSentence[] = [];
+        for (let k = 0; k < parts.length; k++) {
+          const cText = parts[k].trim();
+          const oText = origParts[k]?.trim() || cText;
+          const sent: AudioSentence = {
+            id: sentenceCounter + 1,
+            index: sentenceCounter,
+            text: oText,
+            cleanText: cText,
+            words: cText.split(/\s+/).filter(Boolean),
+            isCodeBlock: false,
+          };
+          sentenceCounter++;
+          allSentences.push(sent);
+          itemSentences.push(sent);
+          listSentences.push(sent);
+        }
+        items.push({ sentences: itemSentences });
+        i++;
+      }
+
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "list-ul",
+        items,
+        sentences: listSentences,
+      });
+      continue;
+    }
+
+    // Ordered List
+    if (line.match(/^\d+\.\s/)) {
+      const items: { sentences: AudioSentence[] }[] = [];
+      const listSentences: AudioSentence[] = [];
+
+      while (i < lines.length && lines[i].match(/^\d+\.\s/)) {
+        const rawItem = lines[i].replace(/^\d+\.\s+/, "").trim();
+        const cleanItem = cleanMarkdownInline(rawItem);
+        const parts = cleanItem.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+        const origParts = rawItem.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+
+        const itemSentences: AudioSentence[] = [];
+        for (let k = 0; k < parts.length; k++) {
+          const cText = parts[k].trim();
+          const oText = origParts[k]?.trim() || cText;
+          const sent: AudioSentence = {
+            id: sentenceCounter + 1,
+            index: sentenceCounter,
+            text: oText,
+            cleanText: cText,
+            words: cText.split(/\s+/).filter(Boolean),
+            isCodeBlock: false,
+          };
+          sentenceCounter++;
+          allSentences.push(sent);
+          itemSentences.push(sent);
+          listSentences.push(sent);
+        }
+        items.push({ sentences: itemSentences });
+        i++;
+      }
+
+      blocks.push({
+        id: `block-${blockCounter++}`,
+        type: "list-ol",
+        items,
+        sentences: listSentences,
+      });
+      continue;
+    }
+
+    // Empty lines
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // Paragraph (group consecutive non-empty lines)
+    const pLines: string[] = [];
+    while (
+      i < lines.length &&
+      lines[i].trim() &&
+      !lines[i].startsWith("#") &&
+      !lines[i].startsWith("```") &&
+      !lines[i].startsWith("> ") &&
+      !lines[i].match(/^[-*]\s/) &&
+      !lines[i].match(/^\d+\.\s/) &&
+      !isMarkdownTableStart(lines[i])
+    ) {
+      pLines.push(lines[i].trim());
+      i++;
+    }
+
+    const rawPara = pLines.join(" ");
+    const cleanPara = cleanMarkdownInline(rawPara);
+    const parts = cleanPara.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+    const origParts = rawPara.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+
+    const paraSentences: AudioSentence[] = [];
+    for (let k = 0; k < parts.length; k++) {
+      const cText = parts[k].trim();
+      const oText = origParts[k]?.trim() || cText;
+      const sent: AudioSentence = {
+        id: sentenceCounter + 1,
+        index: sentenceCounter,
+        text: oText,
+        cleanText: cText,
+        words: cText.split(/\s+/).filter(Boolean),
+        isCodeBlock: false,
+      };
+      sentenceCounter++;
+      allSentences.push(sent);
+      paraSentences.push(sent);
+    }
+
+    blocks.push({
+      id: `block-${blockCounter++}`,
+      type: "paragraph",
+      text: rawPara,
+      sentences: paraSentences,
+    });
+  }
+
+  return { blocks, sentences: allSentences };
+}

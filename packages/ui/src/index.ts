@@ -14,4 +14,6 @@ export { ExportMenu } from "./components/export-menu";
 export { SyntaxHighlighter } from "./components/syntax-highlighter";
 export { MarkdownTable, isMarkdownTableStart, isMarkdownTableSeparator } from "./components/markdown-table";
 export { TableOfContents } from "./components/table-of-contents";
+export { SpeechMarkdownRenderer, type SpeechMarkdownRendererProps } from "./components/speech-markdown-renderer";
 export { DisclaimerBanner } from "./components/disclaimer-banner";
+

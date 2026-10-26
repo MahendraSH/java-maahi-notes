@@ -1,136 +1,38 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Play, Pause, SkipBack, SkipForward, Volume2, VolumeX,
   X, Gauge, Code2, Headphones, RotateCcw
 } from "lucide-react";
+import {
+  parseMarkdownBlocks,
+  type AudioSentence,
+} from "@vibe-notes/notes-core";
 
-export interface AudioSentence {
-  id: number;
-  text: string;
-  cleanText: string;
-  isCodeBlock: boolean;
-  lang?: string;
-}
+export type { AudioSentence };
 
 /**
  * Parses markdown into clean speakable sentences.
- * Skips code block content, replacing them with a polite pause cue.
+ * Uses unified sentence tokenization from @vibe-notes/notes-core.
  */
 export function parseMarkdownToSentences(markdown: string): AudioSentence[] {
-  // Strip YAML frontmatter if present
-  let text = markdown.replace(/^---[\s\S]*?---\n*/, "");
-
-  const sentences: AudioSentence[] = [];
-  let idCounter = 1;
-
-  // Split by code blocks: ```lang\ncode\n```
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    const textBefore = text.slice(lastIndex, match.index);
-    if (textBefore.trim()) {
-      extractSentencesFromTextBlock(textBefore, sentences, idCounter);
-      idCounter = sentences.length + 1;
-    }
-
-    // Code block found: DO NOT read the code syntax!
-    // Instead, insert a polite pause cue so user can inspect the snippet
-    const lang = match[1]?.trim() || "code";
-    sentences.push({
-      id: idCounter++,
-      text: `[Code snippet in ${lang}. Pausing to review.]`,
-      cleanText: `Code example in ${lang}. Pausing to review.`,
-      isCodeBlock: true,
-      lang: lang,
-    });
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Any remaining text after the last code block
-  const remainingText = text.slice(lastIndex);
-  if (remainingText.trim()) {
-    extractSentencesFromTextBlock(remainingText, sentences, idCounter);
-  }
-
-  return sentences;
+  return parseMarkdownBlocks(markdown).sentences;
 }
 
-function extractSentencesFromTextBlock(
-  rawText: string,
-  sentences: AudioSentence[],
-  startId: number
-) {
-  // Split into lines/paragraphs
-  const lines = rawText.split("\n");
-  let buffer = "";
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      if (buffer.trim()) {
-        splitIntoSentences(buffer, sentences, startId);
-        startId = sentences.length + 1;
-        buffer = "";
-      }
-      continue;
-    }
-
-    // Clean markdown headings, blockquotes, list markers
-    let cleanLine = trimmed
-      .replace(/^#{1,6}\s+/, "") // remove headers
-      .replace(/^>\s+/, "") // remove blockquote
-      .replace(/^[-*+]\s+/, "") // remove unordered list
-      .replace(/^\d+\.\s+/, ""); // remove ordered list
-
-    // Clean inline markdown syntax
-    cleanLine = cleanLine
-      .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
-      .replace(/\*([^*]+)\*/g, "$1") // italic
-      .replace(/`([^`]+)`/g, "$1") // inline code
-      .replace(/\[\[(.*?)\]\]/g, "$1") // wiki-links
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"); // standard links
-
-    if (cleanLine.trim()) {
-      buffer += " " + cleanLine.trim();
-    }
-  }
-
-  if (buffer.trim()) {
-    splitIntoSentences(buffer, sentences, startId);
-  }
-}
-
-function splitIntoSentences(
-  paragraph: string,
-  sentences: AudioSentence[],
-  startId: number
-) {
-  // Split by sentence terminators (. ! ?)
-  const rawSentences = paragraph
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 2);
-
-  for (const s of rawSentences) {
-    sentences.push({
-      id: sentences.length + 1,
-      text: s,
-      cleanText: s,
-      isCodeBlock: false,
-    });
-  }
-}
-
-interface ReadAloudPlayerProps {
+export interface ReadAloudPlayerProps {
   content: string;
   noteTitle: string;
   onClose?: () => void;
   className?: string;
+  activeSentenceIndex?: number | null;
+  onSentenceChange?: (sentenceIndex: number, sentence: AudioSentence) => void;
+  onWordChange?: (wordIndex: number, word: string, charIndex: number) => void;
+  onPlayStateChange?: (isPlaying: boolean) => void;
+  onSeekSentence?: (index: number) => void;
+  autoScroll?: boolean;
+  autoPlay?: boolean;
 }
 
 export function ReadAloudPlayer({
@@ -138,15 +40,50 @@ export function ReadAloudPlayer({
   noteTitle,
   onClose,
   className = "",
+  activeSentenceIndex = null,
+  onSentenceChange,
+  onWordChange,
+  onPlayStateChange,
+  onSeekSentence,
+  autoScroll = true,
+  autoPlay = true,
 }: ReadAloudPlayerProps) {
   const sentences = useMemo(() => parseMarkdownToSentences(content), [content]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(activeSentenceIndex ?? 0);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [speed, setSpeed] = useState<number>(1.0);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const wordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const speakSentenceRef = useRef<(idx: number) => void>(() => {});
+  const hasAutoPlayedRef = useRef(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Sync external sentence seek if activeSentenceIndex changes externally
+  useEffect(() => {
+    if (
+      activeSentenceIndex !== null &&
+      activeSentenceIndex !== undefined &&
+      activeSentenceIndex >= 0 &&
+      activeSentenceIndex < sentences.length
+    ) {
+      if (activeSentenceIndex !== currentIndex || !isPlaying) {
+        setCurrentIndex(activeSentenceIndex);
+        setCurrentWordIndex(0);
+        setIsPlaying(true);
+        onPlayStateChange?.(true);
+        speakSentenceRef.current(activeSentenceIndex);
+      }
+    }
+  }, [activeSentenceIndex, sentences.length]);
 
   // Load available voices
   useEffect(() => {
@@ -172,6 +109,8 @@ export function ReadAloudPlayer({
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      if (wordTimerRef.current) clearInterval(wordTimerRef.current);
     };
   }, []);
 
@@ -181,6 +120,7 @@ export function ReadAloudPlayer({
       if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
       if (index < 0 || index >= sentences.length) {
         setIsPlaying(false);
+        onPlayStateChange?.(false);
         return;
       }
 
@@ -189,13 +129,35 @@ export function ReadAloudPlayer({
         clearTimeout(pauseTimerRef.current);
         pauseTimerRef.current = null;
       }
+      if (wordTimerRef.current) {
+        clearInterval(wordTimerRef.current);
+        wordTimerRef.current = null;
+      }
 
       const item = sentences[index];
       setCurrentIndex(index);
+      setCurrentWordIndex(0);
+
+      onSentenceChange?.(index, item);
+      const words = item.words || item.cleanText.trim().split(/\s+/).filter(Boolean);
+      onWordChange?.(0, words[0] || "", 0);
+
+      // Auto-scroll the page to center the sentence
+      if (autoScroll && typeof document !== "undefined") {
+        setTimeout(() => {
+          const el = document.getElementById(`speech-sentence-${index}`);
+          if (el) {
+            el.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "nearest",
+            });
+          }
+        }, 30);
+      }
 
       // If code block pause
       if (item.isCodeBlock) {
-        // Speak brief cue, then give a 2.5s pause to read code
         const cueUtterance = new SpeechSynthesisUtterance(item.cleanText);
         cueUtterance.rate = speed;
         if (selectedVoice) cueUtterance.voice = selectedVoice;
@@ -207,6 +169,7 @@ export function ReadAloudPlayer({
               speakSentence(index + 1);
             } else {
               setIsPlaying(false);
+              onPlayStateChange?.(false);
             }
           }, 2500);
         };
@@ -216,6 +179,7 @@ export function ReadAloudPlayer({
             speakSentence(index + 1);
           } else {
             setIsPlaying(false);
+            onPlayStateChange?.(false);
           }
         };
 
@@ -228,22 +192,77 @@ export function ReadAloudPlayer({
       utterance.rate = speed;
       if (selectedVoice) utterance.voice = selectedVoice;
 
+      let boundaryFired = false;
+
+      // Word boundary event listener (Chrome, Safari, Edge, Firefox)
+      utterance.onboundary = (e: SpeechSynthesisEvent) => {
+        if (e.name === "word") {
+          boundaryFired = true;
+          if (wordTimerRef.current) {
+            clearInterval(wordTimerRef.current);
+            wordTimerRef.current = null;
+          }
+
+          // Locate which word matches the character offset
+          let foundIdx = 0;
+          let runningIndex = 0;
+          for (let w = 0; w < words.length; w++) {
+            const wordStr = words[w];
+            const pos = item.cleanText.indexOf(wordStr, runningIndex);
+            if (pos !== -1) {
+              if (e.charIndex >= pos && e.charIndex < pos + wordStr.length) {
+                foundIdx = w;
+                break;
+              } else if (e.charIndex >= pos) {
+                foundIdx = w;
+              }
+              runningIndex = pos + wordStr.length;
+            }
+          }
+
+          setCurrentWordIndex(foundIdx);
+          onWordChange?.(foundIdx, words[foundIdx] || "", e.charIndex);
+        }
+      };
+
+      // Word pacing fallback ticker (in case OS voice doesn't emit onboundary events)
+      const msPerWord = Math.max(90, Math.round(60000 / (175 * speed)));
+      let fallbackWordIdx = 0;
+      wordTimerRef.current = setInterval(() => {
+        if (boundaryFired) {
+          if (wordTimerRef.current) clearInterval(wordTimerRef.current);
+          return;
+        }
+        fallbackWordIdx++;
+        if (fallbackWordIdx < words.length) {
+          setCurrentWordIndex(fallbackWordIdx);
+          onWordChange?.(fallbackWordIdx, words[fallbackWordIdx] || "", 0);
+        } else {
+          if (wordTimerRef.current) clearInterval(wordTimerRef.current);
+        }
+      }, msPerWord);
+
       utterance.onend = () => {
+        if (wordTimerRef.current) clearInterval(wordTimerRef.current);
         if (index + 1 < sentences.length) {
           speakSentence(index + 1);
         } else {
           setIsPlaying(false);
+          onPlayStateChange?.(false);
           setCurrentIndex(0);
+          setCurrentWordIndex(0);
         }
       };
 
       utterance.onerror = (e) => {
+        if (wordTimerRef.current) clearInterval(wordTimerRef.current);
         // Only advance if not intentionally canceled
         if (e.error !== "canceled" && e.error !== "interrupted") {
           if (index + 1 < sentences.length) {
             speakSentence(index + 1);
           } else {
             setIsPlaying(false);
+            onPlayStateChange?.(false);
           }
         }
       };
@@ -251,8 +270,30 @@ export function ReadAloudPlayer({
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     },
-    [sentences, speed, selectedVoice]
+    [sentences, speed, selectedVoice, onSentenceChange, onWordChange, onPlayStateChange, autoScroll]
   );
+
+  speakSentenceRef.current = speakSentence;
+
+  // Auto-play on mount if enabled
+  useEffect(() => {
+    if (autoPlay && !hasAutoPlayedRef.current && sentences.length > 0) {
+      hasAutoPlayedRef.current = true;
+      const startIdx =
+        activeSentenceIndex !== null &&
+        activeSentenceIndex !== undefined &&
+        activeSentenceIndex >= 0 &&
+        activeSentenceIndex < sentences.length
+          ? activeSentenceIndex
+          : 0;
+      setIsPlaying(true);
+      onPlayStateChange?.(true);
+      const timer = setTimeout(() => {
+        speakSentenceRef.current(startIdx);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPlay, sentences.length, activeSentenceIndex, onPlayStateChange]);
 
   const handlePlayPause = () => {
     if (isPlaying) {
@@ -260,9 +301,12 @@ export function ReadAloudPlayer({
         window.speechSynthesis.cancel();
       }
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      if (wordTimerRef.current) clearInterval(wordTimerRef.current);
       setIsPlaying(false);
+      onPlayStateChange?.(false);
     } else {
       setIsPlaying(true);
+      onPlayStateChange?.(true);
       speakSentence(currentIndex);
     }
   };
@@ -271,6 +315,7 @@ export function ReadAloudPlayer({
     if (currentIndex + 1 < sentences.length) {
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
+      setCurrentWordIndex(0);
       if (isPlaying) {
         speakSentence(nextIdx);
       }
@@ -281,6 +326,7 @@ export function ReadAloudPlayer({
     if (currentIndex > 0) {
       const prevIdx = currentIndex - 1;
       setCurrentIndex(prevIdx);
+      setCurrentWordIndex(0);
       if (isPlaying) {
         speakSentence(prevIdx);
       }
@@ -297,29 +343,27 @@ export function ReadAloudPlayer({
     }
   };
 
-  const handleCycleSpeed = () => {
-    const speeds = [1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0];
-    const nextIdx = (speeds.findIndex((s) => Math.abs(s - speed) < 0.05) + 1) % speeds.length;
-    handleSetSpeed(speeds[nextIdx]);
-  };
-
   const handleStopAndClose = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    if (wordTimerRef.current) clearInterval(wordTimerRef.current);
     setIsPlaying(false);
+    onPlayStateChange?.(false);
     if (onClose) onClose();
   };
 
   const currentSentence = sentences[currentIndex];
+  const currentWords = currentSentence?.words || currentSentence?.cleanText.trim().split(/\s+/).filter(Boolean) || [];
   const progressPercent = sentences.length > 0 ? ((currentIndex + 1) / sentences.length) * 100 : 0;
 
   if (sentences.length === 0) return null;
 
-  return (
+  const playerMarkup = (
     <div
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-white/95 dark:bg-[#181b1f]/95 backdrop-blur-2xl border-2 border-border/80 dark:border-[#383e46] rounded-2xl shadow-[0_25px_60px_-10px_rgba(0,0,0,0.65)] p-4 text-foreground transition-all duration-200 animate-in fade-in-50 slide-in-from-bottom-6 ${className}`}
+      id="read-aloud-player-bar"
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] w-[95%] max-w-2xl bg-white/95 dark:bg-[#181b1f]/95 backdrop-blur-2xl border-2 border-border/80 dark:border-[#383e46] rounded-2xl shadow-[0_25px_60px_-10px_rgba(0,0,0,0.65)] p-4 text-foreground transition-all duration-200 animate-in fade-in-50 slide-in-from-bottom-6 ${className}`}
       style={{
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
@@ -349,15 +393,28 @@ export function ReadAloudPlayer({
             </span>
           </div>
 
-          {/* Current Sentence Live Text Box with solid readable surface */}
-          <div className="text-xs text-foreground/90 font-normal line-clamp-2 italic bg-muted/70 dark:bg-[#21252b] px-3 py-2 rounded-xl border border-border/60 dark:border-[#333942] min-h-[42px] flex items-center shadow-inner">
+          {/* Current Sentence Live Text Box with active word highlighting */}
+          <div className="text-xs text-foreground/90 font-normal line-clamp-2 italic bg-muted/70 dark:bg-[#21252b] px-3 py-2 rounded-xl border border-border/60 dark:border-[#333942] min-h-[42px] flex items-center shadow-inner overflow-hidden">
             {currentSentence?.isCodeBlock ? (
               <span className="flex items-center gap-1.5 text-warning font-semibold not-italic">
                 <Code2 className="w-4 h-4" />
                 <span>[Code Snippet: Pausing 2.5s to review snippet]</span>
               </span>
             ) : (
-              <span>&ldquo;{currentSentence?.text}&rdquo;</span>
+              <span className="flex flex-wrap gap-x-1 items-center not-italic">
+                {currentWords.map((word, wIdx) => (
+                  <span
+                    key={wIdx}
+                    className={`transition-all duration-100 ${
+                      isPlaying && wIdx === currentWordIndex
+                        ? "bg-primary text-primary-foreground font-semibold px-1 rounded shadow-xs scale-105"
+                        : "text-foreground/90"
+                    }`}
+                  >
+                    {word}
+                  </span>
+                ))}
+              </span>
             )}
           </div>
         </div>
@@ -481,4 +538,10 @@ export function ReadAloudPlayer({
       </div>
     </div>
   );
+
+  if (!mounted || typeof document === "undefined") {
+    return playerMarkup;
+  }
+
+  return createPortal(playerMarkup, document.body);
 }

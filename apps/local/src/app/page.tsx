@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search, Plus, Folder, FolderOpen, FileText, Hash, ChevronRight, ChevronDown,
   Sun, Moon, Save, Clock, Tag, BookOpen, Menu, X, Trash2, Eye, Edit3, Copy,
@@ -18,8 +19,10 @@ import {
 import {
   ReadAloudPlayer, ExportMenu, SyntaxHighlighter,
   MarkdownTable, isMarkdownTableStart, isMarkdownTableSeparator,
-  TableOfContents, DisclaimerBanner
+  TableOfContents, DisclaimerBanner, SpeechMarkdownRenderer
 } from "@vibe-notes/ui";
+import { VSCodeExplorer } from "@/components/vscode-explorer";
+
 
 /* ------------------------------------------------------------------ */
 /*  Notes Store                                                       */
@@ -204,8 +207,91 @@ export default function LocalEditorPage() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     () => new Set(DEFAULT_WORKSPACE_FOLDERS)
   );
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
+  const [customFolders, setCustomFolders] = useState<string[]>(() => [...DEFAULT_WORKSPACE_FOLDERS]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("vibe_notes_custom_folders");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCustomFolders(parsed);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const handleAddFolder = useCallback((folderPath: string) => {
+    setCustomFolders((prev) => {
+      if (prev.includes(folderPath)) return prev;
+      const next = [...prev, folderPath];
+      try {
+        localStorage.setItem("vibe_notes_custom_folders", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setExpandedFolders((prev) => new Set([...prev, folderPath]));
+  }, []);
+
+  const handleRenameFolder = useCallback((oldPath: string, newPath: string) => {
+    setCustomFolders((prev) => {
+      const next = prev.map((f) => (f === oldPath ? newPath : f.startsWith(`${oldPath}/`) ? f.replace(oldPath, newPath) : f));
+      try {
+        localStorage.setItem("vibe_notes_custom_folders", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    store.notes.forEach((n) => {
+      if (n.folder === oldPath) {
+        store.updateNote(n.id, { folder: newPath });
+      } else if (n.folder.startsWith(`${oldPath}/`)) {
+        store.updateNote(n.id, { folder: n.folder.replace(oldPath, newPath) });
+      }
+    });
+
+    setExpandedFolders((prev) => {
+      const next = new Set<string>();
+      for (const f of prev) {
+        if (f === oldPath) next.add(newPath);
+        else if (f.startsWith(`${oldPath}/`)) next.add(f.replace(oldPath, newPath));
+        else next.add(f);
+      }
+      return next;
+    });
+
+    if (selectedFolder === oldPath) {
+      setSelectedFolder(newPath);
+    }
+  }, [store, selectedFolder]);
+
+  const handleDeleteFolder = useCallback((folderPath: string, deleteNotes: boolean) => {
+    if (deleteNotes) {
+      store.notes.forEach((n) => {
+        if (n.folder === folderPath || n.folder.startsWith(`${folderPath}/`)) {
+          store.deleteNote(n.id);
+        }
+      });
+    } else {
+      store.notes.forEach((n) => {
+        if (n.folder === folderPath || n.folder.startsWith(`${folderPath}/`)) {
+          store.updateNote(n.id, { folder: "General" });
+        }
+      });
+    }
+
+    setCustomFolders((prev) => {
+      const next = prev.filter((f) => f !== folderPath && !f.startsWith(`${folderPath}/`));
+      try {
+        localStorage.setItem("vibe_notes_custom_folders", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (selectedFolder === folderPath) {
+      setSelectedFolder(null);
+    }
+  }, [store, selectedFolder]);
 
   // Toggle theme
   useEffect(() => {
@@ -491,95 +577,64 @@ export default function LocalEditorPage() {
           </button>
         </div>
 
-        {/* Sidebar Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 pb-2 space-y-4" aria-label="Sidebar navigation">
-          {/* FOLDERS HIERARCHY */}
-          <div>
-            <div className="mb-1 px-2 py-1 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Knowledge Folders</span>
-              <div className="flex items-center gap-1.5">
-                {selectedFolder && (
-                  <button
-                    onClick={() => setSelectedFolder(null)}
-                    className="text-[10px] text-primary hover:underline cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                )}
-                <button
-                  onClick={() => setIsCreatingFolder((prev) => !prev)}
-                  className="text-muted-foreground hover:text-primary transition-colors cursor-pointer p-0.5 rounded"
-                  title="Create new folder"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+        {/* VS Code Hierarchical Explorer */}
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0 border-t border-sidebar-border">
+          <VSCodeExplorer
+            notes={store.notes}
+            activeNoteId={store.activeNoteId}
+            selectedFolder={selectedFolder}
+            expandedFolders={expandedFolders}
+            onToggleExpand={(path) => {
+              setExpandedFolders((prev) => {
+                const next = new Set(prev);
+                if (next.has(path)) next.delete(path);
+                else next.add(path);
+                return next;
+              });
+            }}
+            onExpandAll={() => {
+              const all = new Set<string>();
+              store.notes.forEach((n) => all.add(n.folder));
+              customFolders.forEach((f) => all.add(f));
+              setExpandedFolders(all);
+            }}
+            onCollapseAll={() => setExpandedFolders(new Set())}
+            onSelectNote={(noteId) => {
+              store.setActiveNoteId(noteId);
+              updateUrl(noteId, null, null);
+            }}
+            onSelectFolder={(folderPath) => {
+              setSelectedFolder(folderPath);
+              setSelectedTag(null);
+              store.setActiveNoteId(null);
+              updateUrl(null, folderPath, null);
+            }}
+            onCreateNote={async (folder, title) => {
+              const newNote = await store.createNote(folder || "General", title || "Untitled Note");
+              updateUrl(newNote.id, null, null);
+              return newNote;
+            }}
+            onDeleteNote={async (id) => {
+              await store.deleteNote(id);
+              if (store.activeNoteId === id) {
+                updateUrl(null, selectedFolder, selectedTag);
+              }
+            }}
+            onUpdateNote={(id, updates) => {
+              store.updateNote(id, updates);
+            }}
+            onRefresh={() => {
+              window.location.reload();
+            }}
+            customFolders={customFolders}
+            onAddFolder={handleAddFolder}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+          />
+        </div>
 
-            {isCreatingFolder && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const folder = newFolderName.trim();
-                  if (folder) {
-                    store.createNote(folder, `Untitled in ${folder.split("/").pop()}`);
-                    setSelectedFolder(folder);
-                    setNewFolderName("");
-                    setIsCreatingFolder(false);
-                  }
-                }}
-                className="px-2 mb-2"
-              >
-                <input
-                  type="text"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  placeholder="Folder name… (Enter to save)"
-                  className="w-full text-xs px-2 py-1 rounded bg-background border border-primary outline-none text-foreground"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      setIsCreatingFolder(false);
-                      setNewFolderName("");
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!newFolderName.trim()) setIsCreatingFolder(false);
-                  }}
-                />
-              </form>
-            )}
-
-            {store.folders.map((folder) => (
-              <FolderTreeItem
-                key={folder.id}
-                folder={folder}
-                isSelected={selectedFolder === folder.path}
-                isExpanded={expandedFolders.has(folder.path)}
-                notesInFolder={store.notes.filter((n) => n.folder === folder.path)}
-                activeNoteId={store.activeNoteId}
-                onToggleExpand={() => {
-                  setExpandedFolders((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(folder.path)) next.delete(folder.path);
-                    else next.add(folder.path);
-                    return next;
-                  });
-                }}
-                onSelectFolder={() => {
-                  const nextFolder = folder.path === selectedFolder ? null : folder.path;
-                  setSelectedFolder(nextFolder);
-                  setSelectedTag(null);
-                  store.setActiveNoteId(null);
-                  updateUrl(null, nextFolder, null);
-                }}
-                onSelectNote={(noteId) => {
-                  store.setActiveNoteId(noteId);
-                  updateUrl(noteId, null, null);
-                }}
-              />
-            ))}
-          </div>
+        {/* Sidebar Tags Navigation */}
+        <nav className="overflow-y-auto px-2 py-2 border-t border-sidebar-border max-h-40" aria-label="Tags navigation">
 
           {/* TAGS */}
           {Object.keys(tagCounts).length > 0 && (
@@ -834,6 +889,23 @@ export default function LocalEditorPage() {
               onBackToIndex={() => {
                 store.setActiveNoteId(null);
                 updateUrl(null, selectedFolder, selectedTag);
+              }}
+              onCreateNote={async (folder) => {
+                const newNote = await store.createNote(folder || store.activeNote?.folder || "General");
+                updateUrl(newNote.id, null, null);
+                return newNote;
+              }}
+              onDuplicateNote={async (id) => {
+                const orig = store.notes.find((n) => n.id === id);
+                if (!orig) return;
+                const copy = await store.createNote(orig.folder, `${orig.title} (Copy)`);
+                store.updateNote(copy.id, {
+                  content: orig.content,
+                  tags: [...orig.tags],
+                  description: orig.description,
+                  publicationStatus: "local",
+                });
+                updateUrl(copy.id, null, null);
               }}
             />
           ) : selectedFolder ? (
@@ -1900,6 +1972,8 @@ function NoteEditor({
   onDelete,
   onNavigateNote,
   onBackToIndex,
+  onCreateNote,
+  onDuplicateNote,
 }: {
   note: Note;
   allNotes: Note[];
@@ -1909,9 +1983,33 @@ function NoteEditor({
   onDelete: () => void;
   onNavigateNote: (id: string) => void;
   onBackToIndex: () => void;
+  onCreateNote?: (folder?: string) => Promise<Note>;
+  onDuplicateNote?: (id: string) => Promise<void>;
 }) {
   const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const [activeSentenceIndex, setActiveSentenceIndex] = useState<number | null>(null);
+  const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
   const [copiedText, setCopiedText] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [publishFeedback, setPublishFeedback] = useState<string | null>(null);
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    const handleOutsideClick = () => setEditorContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setEditorContextMenu(null);
+        setShowDeleteConfirm(false);
+      }
+    };
+    window.addEventListener("click", handleOutsideClick);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", handleOutsideClick);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const handleCopyPlainText = async () => {
     try {
@@ -1930,6 +2028,13 @@ function NoteEditor({
     onUpdate({ publicationStatus: next });
   };
 
+  const handleQuickPublish = () => {
+    const nextStatus = note.publicationStatus === "published" ? "local" : "published";
+    onUpdate({ publicationStatus: nextStatus });
+    setPublishFeedback(nextStatus === "published" ? "Published to Web!" : "Reverted to Local Draft");
+    setTimeout(() => setPublishFeedback(null), 2500);
+  };
+
   const statusLabel =
     note.publicationStatus === "published" ? "Published" :
     note.publicationStatus === "staged" ? "Staged" : "Local (Private)";
@@ -1943,22 +2048,73 @@ function NoteEditor({
   }, [note, allNotes]);
 
   return (
-    <div className={viewMode === "split" ? "w-full max-w-7xl mx-auto p-4 md:p-8" : "max-w-4xl mx-auto p-6 md:p-10"}>
-      {/* Back to index link */}
-      <button
-        onClick={onBackToIndex}
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary mb-4 cursor-pointer transition-colors"
-      >
-        <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-        Back to Workspace Index
-      </button>
+    <div
+      className={viewMode === "split" ? "w-full max-w-7xl mx-auto p-4 md:p-8" : "max-w-4xl mx-auto p-6 md:p-10"}
+      onContextMenu={(e) => {
+        // Only trigger editor context menu if not in input/textarea
+        const tag = (e.target as HTMLElement).tagName.toLowerCase();
+        if (tag !== "input") {
+          e.preventDefault();
+          e.stopPropagation();
+          setEditorContextMenu({
+            x: Math.min(e.clientX, window.innerWidth - 220),
+            y: Math.min(e.clientY, window.innerHeight - 300),
+          });
+        }
+      }}
+    >
+      {/* Top Embedded Action Bar */}
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        {/* Back to index link */}
+        <button
+          onClick={onBackToIndex}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary cursor-pointer transition-colors"
+        >
+          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+          Back to Workspace Index
+        </button>
+
+        {/* Embedded Document Actions (VS Code Style) */}
+        <div className="flex items-center gap-1.5">
+          {onCreateNote && (
+            <button
+              onClick={() => onCreateNote(note.folder)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Create new note in this folder"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Note</span>
+            </button>
+          )}
+
+          {onDuplicateNote && (
+            <button
+              onClick={() => onDuplicateNote(note.id)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-border hover:bg-muted text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Duplicate this note"
+            >
+              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Duplicate</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-destructive/30 hover:bg-destructive/15 text-destructive transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Delete this note"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Delete</span>
+          </button>
+        </div>
+      </div>
 
       {/* Title */}
       <input
         type="text"
         value={note.title}
         onChange={(e) => onUpdate({ title: e.target.value, slug: slugify(e.target.value || "untitled") })}
-        className="w-full text-2xl md:text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 mb-3"
+        className="w-full text-2xl md:text-3xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 mb-3 text-foreground"
         placeholder="Note title…"
         aria-label="Note title"
       />
@@ -1978,25 +2134,45 @@ function NoteEditor({
         <div className="h-4 w-px bg-border/60 hidden sm:block" />
 
         {/* Tags Autocomplete Picker */}
-        <div className="flex-1 min-w-[220px] flex items-center gap-1.5">
+        <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1">Tags:</span>
           <TagAutocompletePicker
             selectedTags={note.tags}
             allNotes={allNotes}
             onAddTag={(tag) => onUpdate({ tags: Array.from(new Set([...note.tags, tag])) })}
             onRemoveTag={(tag) => onUpdate({ tags: note.tags.filter((t) => t !== tag) })}
-            placeholder="+ Add tag (type to search)…"
+            placeholder="+ Add tag…"
           />
         </div>
 
         <div className="h-4 w-px bg-border/60 hidden sm:block" />
 
-        {/* Publication Status & Meta Actions */}
-        <div className="flex items-center gap-2">
+        {/* Publication Status & 1-Click Publish Action */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 1-Click Publish/Unpublish Action */}
+          <button
+            onClick={handleQuickPublish}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-95 ${
+              note.publicationStatus === "published"
+                ? "bg-success/15 border-success/40 text-success hover:bg-success/20"
+                : "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+            }`}
+            title="1-Click Publish to Web / Revert to Local"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{note.publicationStatus === "published" ? "Published to Web" : "Publish to Web"}</span>
+            {publishFeedback && (
+              <span className="text-[10px] font-mono animate-in fade-in-50 ml-1">
+                ({publishFeedback})
+              </span>
+            )}
+          </button>
+
+          {/* Cycle Status pill */}
           <button
             onClick={cycleStatus}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-sm ${statusColor}`}
-            title="Click to cycle: Local → Staged → Published"
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-sm ${statusColor}`}
+            title="Click to cycle status: Local → Staged → Published"
           >
             {statusLabel}
           </button>
@@ -2006,12 +2182,12 @@ function NoteEditor({
             {note.readingTimeMinutes}m read
           </span>
 
-          {/* 1-Click Copy Plain Text (Fast, zero sound, for external tools) */}
+          {/* 1-Click Copy Plain Text */}
           <button
             type="button"
             onClick={handleCopyPlainText}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/60 hover:bg-card text-xs font-medium text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
-            title="Copy clean plain text (markdown stripped) to read in external screen reader or text tools"
+            title="Copy clean plain text (markdown stripped)"
           >
             {copiedText ? (
               <>
@@ -2026,22 +2202,31 @@ function NoteEditor({
             )}
           </button>
 
-          {/* 1-Click Read Aloud (TTS) */}
+          {/* 1-Click Read Aloud (TTS) with auto-scroll and word highlight */}
           <button
             type="button"
-            onClick={() => setIsReadingAloud(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-card/60 hover:bg-card text-xs font-medium text-foreground transition-all cursor-pointer shadow-xs active:scale-95"
-            title="Listen to note with Read-Aloud TTS player and speed control"
+            onClick={() => {
+              setIsReadingAloud((prev) => !prev);
+              if (!isReadingAloud && activeSentenceIndex === null) {
+                setActiveSentenceIndex(0);
+              }
+            }}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all cursor-pointer shadow-xs active:scale-95 ${
+              isReadingAloud
+                ? "bg-primary text-primary-foreground border-primary shadow-[0_0_10px_rgba(248,152,32,0.4)]"
+                : "border-border bg-card/60 hover:bg-card text-foreground"
+            }`}
+            title="Listen to note with Read-Aloud TTS player and auto-scroll"
           >
             <Headphones className="w-3.5 h-3.5 text-primary" />
-            <span className="hidden sm:inline">Read Aloud</span>
+            <span className="hidden sm:inline">{isReadingAloud ? "Reader Active" : "Read Aloud"}</span>
           </button>
 
           {/* Export & Copy Menu */}
           <ExportMenu note={note} onTriggerReadAloud={() => setIsReadingAloud(true)} />
 
           <button
-            onClick={onDelete}
+            onClick={() => setShowDeleteConfirm(true)}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
             aria-label="Delete note"
             title="Delete note"
@@ -2056,17 +2241,30 @@ function NoteEditor({
         <textarea
           value={note.content}
           onChange={(e) => onUpdate({ content: e.target.value })}
-          className="w-full min-h-[55vh] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-muted-foreground/40"
+          className="w-full min-h-[55vh] bg-transparent border-none outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-muted-foreground/40 text-foreground"
           placeholder="Start writing your Markdown notes here… Use [[Note Title]] for note-to-note links."
           aria-label="Note content"
           spellCheck={false}
         />
       ) : viewMode === "preview" ? (
-        <MarkdownPreview
-          content={note.content}
-          allNotes={allNotes}
-          onNavigateNote={onNavigateNote}
-        />
+        isReadingAloud ? (
+          <SpeechMarkdownRenderer
+            content={note.content}
+            activeSentenceIndex={activeSentenceIndex}
+            activeWordIndex={activeWordIndex}
+            isReadingAloud={isReadingAloud}
+            onSeekSentence={(idx) => {
+              setActiveSentenceIndex(idx);
+              setIsReadingAloud(true);
+            }}
+          />
+        ) : (
+          <MarkdownPreview
+            content={note.content}
+            allNotes={allNotes}
+            onNavigateNote={onNavigateNote}
+          />
+        )
       ) : (
         /* Split-Pane Side-by-Side */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[60vh]">
@@ -2078,7 +2276,7 @@ function NoteEditor({
             <textarea
               value={note.content}
               onChange={(e) => onUpdate({ content: e.target.value })}
-              className="w-full flex-1 min-h-[60vh] p-4 rounded-xl border border-border/80 bg-background/50 focus:bg-background focus:border-primary/50 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-muted-foreground/40 transition-colors shadow-inner"
+              className="w-full flex-1 min-h-[60vh] p-4 rounded-xl border border-border/80 bg-background/50 focus:bg-background focus:border-primary/50 outline-none resize-none font-mono text-sm leading-relaxed placeholder:text-muted-foreground/40 transition-colors shadow-inner text-foreground"
               placeholder="Start writing your Markdown notes here… Use [[Note Title]] for note-to-note links."
               aria-label="Note content source"
               spellCheck={false}
@@ -2090,11 +2288,24 @@ function NoteEditor({
               <span className="text-[10px] text-muted-foreground/60 font-mono">Rendered Output</span>
             </div>
             <div className="flex-1 p-5 rounded-xl border border-border/80 bg-card/30 overflow-y-auto max-h-[75vh]">
-              <MarkdownPreview
-                content={note.content}
-                allNotes={allNotes}
-                onNavigateNote={onNavigateNote}
-              />
+              {isReadingAloud ? (
+                <SpeechMarkdownRenderer
+                  content={note.content}
+                  activeSentenceIndex={activeSentenceIndex}
+                  activeWordIndex={activeWordIndex}
+                  isReadingAloud={isReadingAloud}
+                  onSeekSentence={(idx) => {
+                    setActiveSentenceIndex(idx);
+                    setIsReadingAloud(true);
+                  }}
+                />
+              ) : (
+                <MarkdownPreview
+                  content={note.content}
+                  allNotes={allNotes}
+                  onNavigateNote={onNavigateNote}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -2129,13 +2340,157 @@ function NoteEditor({
         </div>
       )}
 
-      {/* Floating Read Aloud Player */}
+      {/* Floating Read Aloud Player with auto-scroll */}
       {isReadingAloud && (
         <ReadAloudPlayer
           content={note.content}
           noteTitle={note.title}
-          onClose={() => setIsReadingAloud(false)}
+          activeSentenceIndex={activeSentenceIndex}
+          onSentenceChange={(idx) => setActiveSentenceIndex(idx)}
+          onWordChange={(wIdx) => setActiveWordIndex(wIdx)}
+          onClose={() => {
+            setIsReadingAloud(false);
+            setActiveSentenceIndex(null);
+            setActiveWordIndex(null);
+          }}
+          autoScroll={true}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in-50"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-popover border border-border rounded-xl shadow-2xl p-5 text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-lg bg-destructive/15 text-destructive">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">Delete &ldquo;{note.title}&rdquo;?</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Are you sure you want to permanently delete this note file? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-3 py-1.5 rounded-lg text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  onDelete();
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Note
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Editor Canvas Right-Click Context Menu */}
+      {editorContextMenu && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ top: editorContextMenu.y, left: editorContextMenu.x }}
+          className="fixed z-[9999] w-52 bg-popover/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl py-1 text-xs text-foreground animate-in fade-in-50 zoom-in-95 font-sans"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1 border-b border-border/50 text-[10px] font-mono text-muted-foreground truncate">
+            {note.title}
+          </div>
+
+          {onCreateNote && (
+            <button
+              onClick={() => {
+                setEditorContextMenu(null);
+                onCreateNote(note.folder);
+              }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left cursor-pointer transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 text-primary" />
+              <span>New Note</span>
+            </button>
+          )}
+
+          {onDuplicateNote && (
+            <button
+              onClick={() => {
+                setEditorContextMenu(null);
+                onDuplicateNote(note.id);
+              }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left cursor-pointer transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Duplicate Note</span>
+            </button>
+          )}
+
+          <div className="my-1 border-t border-border/50" />
+
+          {/* Publishing Actions */}
+          <button
+            onClick={() => {
+              setEditorContextMenu(null);
+              handleQuickPublish();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left cursor-pointer transition-colors"
+          >
+            <Globe className="w-3.5 h-3.5 text-success" />
+            <span>{note.publicationStatus === "published" ? "Unpublish (Set to Local)" : "Publish to Web"}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditorContextMenu(null);
+              onUpdate({ publicationStatus: "staged" });
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left cursor-pointer transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-warning" />
+            <span>Stage for Review</span>
+          </button>
+
+          <div className="my-1 border-t border-border/50" />
+
+          <button
+            onClick={() => {
+              setEditorContextMenu(null);
+              handleCopyPlainText();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-muted text-left cursor-pointer transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5 text-primary" />
+            <span>Copy Plain Text</span>
+          </button>
+
+          <div className="my-1 border-t border-border/50" />
+
+          <button
+            onClick={() => {
+              setEditorContextMenu(null);
+              setShowDeleteConfirm(true);
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-destructive/15 text-destructive text-left cursor-pointer transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Note…</span>
+          </button>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2392,14 +2747,13 @@ function AdvancedSearchModal({
   const [statusFilter, setStatusFilter] = useState<PublicationStatus | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"relevance" | "updated" | "title">("relevance");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  useEffect(() => {
     try {
-      return JSON.parse(localStorage.getItem("vibe_notes_recent_searches") || "[]");
-    } catch {
-      return [];
-    }
-  });
+      setRecentSearches(JSON.parse(localStorage.getItem("vibe_notes_recent_searches") || "[]"));
+    } catch {}
+  }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
 

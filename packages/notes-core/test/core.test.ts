@@ -13,6 +13,7 @@ import {
   extractTableOfContents,
   isMarkdownTableStart,
   isMarkdownTableSeparator,
+  parseMarkdownBlocks,
   type Note,
 } from "../src/index.ts";
 
@@ -214,5 +215,53 @@ test("isMarkdownTableStart and isMarkdownTableSeparator accurately identify tabl
   assert.strictEqual(isMarkdownTableSeparator("| :--- | :---: | ---: |"), true);
   assert.strictEqual(isMarkdownTableSeparator("| row 1 | row 2 |"), false);
 });
+
+test("parseMarkdownBlocks extracts structured blocks and sentences with words", () => {
+  const md = `---
+title: Test Note
+---
+
+# Introduction to Vibe
+
+This is the first sentence. Here is another sentence with **bold text**!
+
+\`\`\`typescript
+const x = 42;
+\`\`\`
+
+> A wise quote. Another line.
+
+- Item number one.
+- Item number two.
+
+| Col A | Col B |
+|---|---|
+| Val 1 | Val 2 |
+`;
+
+  const { blocks, sentences } = parseMarkdownBlocks(md);
+
+  assert.strictEqual(blocks.length > 0, true);
+  assert.strictEqual(sentences.length >= 6, true);
+
+  // Check heading sentence
+  assert.strictEqual(sentences[0].index, 0);
+  assert.strictEqual(sentences[0].text, "Introduction to Vibe");
+  assert.strictEqual(sentences[0].cleanText, "Introduction to Vibe");
+  assert.deepStrictEqual(sentences[0].words, ["Introduction", "to", "Vibe"]);
+
+  // Check paragraph sentences
+  assert.strictEqual(sentences[1].index, 1);
+  assert.strictEqual(sentences[1].cleanText, "This is the first sentence.");
+  assert.strictEqual(sentences[2].index, 2);
+  assert.strictEqual(sentences[2].cleanText, "Here is another sentence with bold text!");
+
+  // Check code block pause cue
+  const codeSent = sentences.find((s) => s.isCodeBlock);
+  assert.ok(codeSent);
+  assert.strictEqual(codeSent.lang, "typescript");
+  assert.strictEqual(codeSent.cleanText, "Code example in typescript. Pausing to review.");
+});
+
 
 
